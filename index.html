@@ -48,6 +48,20 @@
             flex: 1; display: flex; align-items: center; justify-content: center;
             background: #f1f5f9; border-radius: 0.8rem; color: #cbd5e1;
         }
+
+        /* Estilos de Carrusel */
+        .carousel-container { position: relative; display: flex; align-items: center; }
+        .carousel-track { scroll-behavior: smooth; display: flex; gap: 1rem; overflow-x: auto; padding: 10px 0; }
+        .carousel-nav {
+            position: absolute; top: 50%; transform: translateY(-50%);
+            background: white; border: 1px solid #e2e8f0; border-radius: 50%;
+            width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); cursor: pointer; z-index: 10;
+            transition: all 0.2s; color: #64748b;
+        }
+        .carousel-nav:hover { background: #3b82f6; color: white; border-color: #3b82f6; }
+        .carousel-nav.prev { left: -20px; }
+        .carousel-nav.next { right: -20px; }
     </style>
 </head>
 <body class="min-h-screen pb-20">
@@ -192,12 +206,10 @@
     <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-8 py-4 rounded-2xl shadow-2xl opacity-0 pointer-events-none transition-all font-black text-[10px] uppercase tracking-widest z-[100]"></div>
 
     <script type="module">
-        // Firebase Core & Firestore
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Firebase Config de usuario
         const firebaseConfig = {
             apiKey: "AIzaSyCi3nxC2c8Sp4JAs9ylU4uxVagVXToP8HM",
             authDomain: "accountmatrixhub.firebaseapp.com",
@@ -211,7 +223,6 @@
         const MASTER_PASSWORD = "Cremalab#2026"; 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'account-matrix-hub-prod';
 
-        // Init Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
@@ -219,14 +230,12 @@
         let user = null;
         let currentBranch = 'mty';
         
-        // Estructura de datos por defecto
         let data = JSON.parse(localStorage.getItem('am_local_data')) || {
             mty: { label: 'Monterrey', leads: 0, goal: 1350, budget: 0, metaMaterials: { awa: [], pro: [], ret: [] }, events: [], express: [], insumos: [], driveFolders: { awa:[], pro:[], ret:[] } },
             cdmx: { label: 'CDMX', leads: 0, goal: 800, budget: 0, metaMaterials: {awa:[], pro:[], ret:[]}, events: [], express: [], insumos: [], driveFolders: { awa:[], pro:[], ret:[] } },
             slw: { label: 'Saltillo', leads: 0, goal: 350, budget: 0, metaMaterials: {awa:[], pro:[], ret:[]}, events: [], express: [], insumos: [], driveFolders: { awa:[], pro:[], ret:[] } }
         };
 
-        // Auth Logic
         window.checkAuth = async () => {
             const pass = document.getElementById('auth-pass').value;
             if (pass === MASTER_PASSWORD) {
@@ -237,8 +246,7 @@
                         await signInAnonymously(auth);
                     }
                 } catch (e) {
-                    console.error("Auth Error", e);
-                    openApp(); // Fallback
+                    openApp();
                 }
             } else {
                 const error = document.getElementById('auth-error');
@@ -267,7 +275,6 @@
         function initRealtimeSync() {
             if (!user) return;
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'master_data');
-            
             onSnapshot(docRef, (docSnap) => {
                 if (docSnap.exists()) {
                     data = docSnap.data();
@@ -275,7 +282,6 @@
                     renderAll();
                 }
             }, (err) => {
-                console.warn("Firestore error:", err);
                 document.getElementById('connection-label').innerText = 'Modo Local (Error Sync)';
             });
         }
@@ -283,18 +289,15 @@
         window.saveAll = async () => {
             updateDataFromInputs();
             localStorage.setItem('am_local_data', JSON.stringify(data));
-            
             if (user) {
                 const saveBtn = document.getElementById('save-btn');
                 const originalText = saveBtn.innerHTML;
                 saveBtn.innerHTML = '<div class="loading-spinner"></div>';
-                
                 try {
                     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'master_data');
                     await setDoc(docRef, data);
                     showToast("Sincronizado en Firebase");
                 } catch (e) {
-                    console.error(e);
                     showToast("Error de guardado en nube");
                 } finally {
                     saveBtn.innerHTML = originalText;
@@ -318,21 +321,15 @@
             document.getElementById(id).classList.add('active');
             document.getElementById('btn-'+id).classList.add('active');
         };
-        window.switchBranch = (id) => { 
-            updateDataFromInputs(); 
-            currentBranch = id; 
-            renderAll(); 
-        };
+        window.switchBranch = (id) => { updateDataFromInputs(); currentBranch = id; renderAll(); };
 
         function renderAll() {
             const b = data[currentBranch];
             if(!b.driveFolders) b.driveFolders = { awa:[], pro:[], ret:[] };
-
             document.getElementById('label-sucursal').innerText = b.label;
             document.getElementById('insumos-branch').innerText = b.label;
             document.getElementById('leads-actual').value = b.leads;
             document.getElementById('budget-actual').value = b.budget;
-            
             renderMetaMaterials();
             renderEvents();
             renderExpress();
@@ -341,6 +338,7 @@
             calculateMeta();
         }
 
+        // --- VISUALIZADOR DE DRIVE ACTUALIZADO ---
         function renderDriveVisualizer() {
             const b = data[currentBranch];
             const container = document.getElementById('drive-visualization-area');
@@ -356,32 +354,48 @@
                         ${(b.driveFolders[stage] || []).map((folder, fIdx) => `
                             <div class="folder-group">
                                 <div class="flex justify-between items-end mb-4 px-2">
-                                    <div>
-                                        <h5 class="text-sm font-black text-slate-800 uppercase tracking-tighter">${folder.name}</h5>
-                                        <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">${folder.count} artes cargados</p>
+                                    <div class="flex items-center gap-4">
+                                        <div>
+                                            <h5 class="text-sm font-black text-slate-800 uppercase tracking-tighter">${folder.name}</h5>
+                                            <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">${folder.count} artes • <a href="${folder.url}" target="_blank" class="text-blue-500 hover:underline">Abrir Drive</a></p>
+                                        </div>
                                     </div>
                                     <button onclick="removeDriveFolder('${stage}', ${fIdx})" class="text-slate-300 hover:text-red-500 text-xs transition-colors">Eliminar Carpeta</button>
                                 </div>
-                                <div class="flex gap-4 overflow-x-auto pb-6 no-scrollbar snap-x">
-                                    ${Array.from({ length: folder.count }).map((_, i) => `
-                                        <div class="art-card snap-start">
-                                            <div class="art-preview-placeholder">
-                                                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                                
+                                <div class="carousel-container">
+                                    <button class="carousel-nav prev" onclick="scrollCarousel('${stage}-${fIdx}', -400)">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                                    </button>
+                                    <div id="track-${stage}-${fIdx}" class="carousel-track no-scrollbar">
+                                        ${Array.from({ length: folder.count }).map((_, i) => `
+                                            <div class="art-card">
+                                                <div class="art-preview-placeholder">
+                                                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                                                </div>
+                                                <div class="mt-3 px-1 flex justify-between items-center">
+                                                    <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">ART_${i+1}</span>
+                                                    <div class="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                                                </div>
                                             </div>
-                                            <div class="mt-3 px-1 flex justify-between items-center">
-                                                <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">ART_${i+1}</span>
-                                                <div class="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-                                            </div>
-                                        </div>
-                                    `).join('')}
+                                        `).join('')}
+                                    </div>
+                                    <button class="carousel-nav next" onclick="scrollCarousel('${stage}-${fIdx}', 400)">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                                    </button>
                                 </div>
                             </div>
                         `).join('')}
+                        
+                        <!-- Formulario mejorado con campo de URL -->
                         <div class="p-8 border-2 border-dashed border-slate-100 rounded-[2.5rem] bg-slate-50/30 text-center">
-                            <div class="max-w-xs mx-auto space-y-3">
-                                <input type="text" id="new-folder-name-${stage}" placeholder="Nombre de Carpeta" class="w-full bg-white rounded-xl px-4 py-3 text-xs font-bold outline-none border border-slate-100">
-                                <input type="number" id="new-folder-count-${stage}" placeholder="Cantidad de Artes" class="w-full bg-white rounded-xl px-4 py-3 text-xs font-bold outline-none border border-slate-100">
-                                <button onclick="addDriveFolder('${stage}')" class="w-full bg-slate-900 text-white rounded-xl py-3 text-[10px] font-black uppercase">+ Vincular</button>
+                            <div class="max-w-md mx-auto space-y-3">
+                                <div class="grid grid-cols-2 gap-3">
+                                    <input type="text" id="new-folder-name-${stage}" placeholder="Nombre de Carpeta" class="w-full bg-white rounded-xl px-4 py-3 text-xs font-bold outline-none border border-slate-100">
+                                    <input type="number" id="new-folder-count-${stage}" placeholder="Cant. Artes" class="w-full bg-white rounded-xl px-4 py-3 text-xs font-bold outline-none border border-slate-100">
+                                </div>
+                                <input type="text" id="new-folder-url-${stage}" placeholder="Pegar URL de carpeta Google Drive" class="w-full bg-white rounded-xl px-4 py-3 text-xs font-bold outline-none border border-slate-100">
+                                <button onclick="addDriveFolder('${stage}')" class="w-full bg-slate-900 text-white rounded-xl py-3 text-[10px] font-black uppercase transition-all hover:bg-black">+ Vincular Carpeta de Drive</button>
                             </div>
                         </div>
                     </div>
@@ -389,13 +403,23 @@
             `).join('');
         }
 
+        window.scrollCarousel = (id, amount) => {
+            const track = document.getElementById('track-' + id);
+            track.scrollBy({ left: amount, behavior: 'smooth' });
+        };
+
         window.addDriveFolder = (stage) => {
             const name = document.getElementById(`new-folder-name-${stage}`).value;
             const count = parseInt(document.getElementById(`new-folder-count-${stage}`).value);
-            if(name && count > 0) {
+            const url = document.getElementById(`new-folder-url-${stage}`).value;
+            
+            if(name && count > 0 && url) {
                 if(!data[currentBranch].driveFolders[stage]) data[currentBranch].driveFolders[stage] = [];
-                data[currentBranch].driveFolders[stage].push({ name, count });
+                data[currentBranch].driveFolders[stage].push({ name, count, url });
                 renderDriveVisualizer();
+                showToast("Carpeta vinculada correctamente");
+            } else {
+                showToast("Por favor llena todos los campos");
             }
         };
 
@@ -404,6 +428,7 @@
             renderDriveVisualizer();
         };
 
+        // --- RESTO DE FUNCIONES DE RENDERIZADO ---
         function renderMetaMaterials() {
             const b = data[currentBranch];
             document.getElementById('meta-materials').innerHTML = ['awa', 'pro', 'ret'].map(p => `
