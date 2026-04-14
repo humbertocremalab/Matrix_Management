@@ -13,7 +13,6 @@
         
         .section-card { background: white; border-radius: 24px; padding: 2rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); border: 1px solid #f1f5f9; }
         
-        /* Tabs */
         .tab-btn { padding: 1rem 1.5rem; font-weight: 800; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; border-bottom: 3px solid transparent; transition: all 0.2s; white-space: nowrap; }
         .tab-btn.active { color: #2563eb; border-bottom-color: #2563eb; background-color: #eff6ff; }
         
@@ -24,11 +23,6 @@
         .status-pending { background: #fee2e2; color: #ef4444; }
         .status-done { background: #dcfce7; color: #16a34a; }
 
-        /* Estilos Reporte */
-        #report-modal { display: none; }
-        .report-preview { background: white; font-family: 'Courier New', Courier, monospace; line-height: 1.4; }
-
-        /* Login Overlay */
         #login-overlay {
             position: fixed;
             inset: 0;
@@ -41,7 +35,6 @@
         }
         #main-app { display: none; }
 
-        /* Loading State */
         .loading-spinner {
             border: 3px solid rgba(255, 255, 255, 0.1);
             border-left-color: #3b82f6;
@@ -55,14 +48,13 @@
 </head>
 <body class="min-h-screen pb-20">
 
-    <!-- LOGIN SCREEN -->
     <div id="login-overlay">
         <div class="w-full max-w-sm p-8 text-center">
             <div class="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center text-white mx-auto mb-6 shadow-xl shadow-blue-900/20">
                 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
             </div>
             <h2 class="text-white text-2xl font-black uppercase tracking-tighter mb-2">Acceso Restringido</h2>
-            <p class="text-slate-500 text-xs font-bold uppercase tracking-widest mb-8">Cloud Management System</p>
+            <p id="auth-status-text" class="text-slate-500 text-xs font-bold uppercase tracking-widest mb-8">Cloud Management System</p>
             
             <div class="space-y-4">
                 <input type="password" id="auth-pass" placeholder="Ingresa tu clave de acceso" 
@@ -70,14 +62,12 @@
                 <button id="login-btn" onclick="checkAuth()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2">
                     <span>Entrar al Sistema</span>
                 </button>
-                <p id="auth-error" class="text-red-500 text-[10px] font-black uppercase tracking-widest hidden mt-4">Clave incorrecta o error de conexión</p>
+                <p id="auth-error" class="text-red-500 text-[10px] font-black uppercase tracking-widest hidden mt-4">Clave incorrecta o error de configuración</p>
             </div>
         </div>
     </div>
 
-    <!-- MAIN APP STRUCTURE -->
     <div id="main-app">
-        <!-- Navbar -->
         <nav class="bg-white border-b border-gray-100 sticky top-0 z-50 shadow-sm">
             <div class="px-8 py-4 flex justify-between items-center">
                 <div class="flex items-center gap-4">
@@ -86,7 +76,7 @@
                     </div>
                     <div>
                         <h1 class="text-xl font-black tracking-tighter">AM <span class="text-blue-600">MANAGEMENT</span></h1>
-                        <p class="text-[9px] text-gray-400 font-black uppercase tracking-widest">Cloud Sync • Activo</p>
+                        <p id="connection-label" class="text-[9px] text-gray-400 font-black uppercase tracking-widest">Sincronización Local</p>
                     </div>
                 </div>
 
@@ -96,12 +86,8 @@
                         <option value="cdmx">CDMX</option>
                         <option value="slw">SALTILLO</option>
                     </select>
-                    <button onclick="openReport()" class="bg-slate-800 text-white px-5 py-2 rounded-xl text-xs font-black uppercase transition-all hover:bg-black flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                        Reporte
-                    </button>
                     <button onclick="saveAll()" id="save-btn" class="bg-blue-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all flex items-center gap-2">
-                        <span>Sincronizar</span>
+                        <span>Guardar</span>
                     </button>
                     <button onclick="logout()" class="text-slate-400 hover:text-red-500 ml-2 transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
@@ -112,13 +98,12 @@
             <div class="flex px-8 border-t border-gray-50 overflow-x-auto no-scrollbar bg-white">
                 <button onclick="switchTab('tab-meta')" id="btn-tab-meta" class="tab-btn active">I. Embudo Meta</button>
                 <button onclick="switchTab('tab-eventos')" id="btn-tab-eventos" class="tab-btn">II. Gestión de Eventos</button>
-                <button onclick="switchTab('tab-express')" id="btn-tab-express" class="tab-btn">III. Express (Asana Sync)</button>
-                <button onclick="switchTab('tab-insumos')" id="btn-tab-insumos" class="tab-btn">IV. Renovación Insumos</button>
+                <button onclick="switchTab('tab-express')" id="btn-tab-express" class="tab-btn">III. Express</button>
+                <button onclick="switchTab('tab-insumos')" id="btn-tab-insumos" class="tab-btn">IV. Insumos</button>
             </div>
         </nav>
 
         <main class="max-w-7xl mx-auto py-8 px-6">
-            <!-- Los contenidos se inyectan dinámicamente -->
             <div id="tab-meta" class="tab-content active space-y-8">
                 <section class="section-card border-l-8 border-l-blue-600">
                     <div class="flex justify-between items-center mb-6">
@@ -149,9 +134,7 @@
                         </div>
                     </div>
                 </section>
-                <section class="section-card">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8" id="meta-materials"></div>
-                </section>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8" id="meta-materials"></div>
             </div>
 
             <div id="tab-eventos" class="tab-content space-y-8">
@@ -166,15 +149,15 @@
                 <div class="section-card bg-slate-900 border-none text-white">
                     <div class="flex justify-between items-center mb-10">
                         <div>
-                            <h2 class="text-2xl font-black uppercase tracking-tighter italic">Log Express <span class="text-blue-500">Sync</span></h2>
-                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total del mes: <span id="express-count" class="text-white">0</span> tareas registradas</p>
+                            <h2 class="text-2xl font-black uppercase tracking-tighter italic text-blue-500">Log Express Sync</h2>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total del mes: <span id="express-count" class="text-white">0</span> tareas</p>
                         </div>
                     </div>
                     <div class="grid grid-cols-1 gap-4 mb-10" id="express-list"></div>
                     <div class="bg-slate-800 p-6 rounded-[32px] grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <input type="text" id="ex-nom" placeholder="Nomenclatura Asana" class="bg-slate-700 border-none rounded-xl px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500 font-bold">
-                        <input type="text" id="ex-link" placeholder="URL Tarea (Asana)" class="bg-slate-700 border-none rounded-xl px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500">
-                        <button onclick="addExpress()" class="bg-blue-600 hover:bg-blue-700 rounded-xl font-black text-white text-xs uppercase transition-all">Registrar Tarea</button>
+                        <input type="text" id="ex-nom" placeholder="Nomenclatura" class="bg-slate-700 border-none rounded-xl px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500 font-bold">
+                        <input type="text" id="ex-link" placeholder="URL Asana" class="bg-slate-700 border-none rounded-xl px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500">
+                        <button onclick="addExpress()" class="bg-blue-600 hover:bg-blue-700 rounded-xl font-black text-white text-xs uppercase transition-all">Registrar</button>
                     </div>
                 </div>
             </div>
@@ -182,170 +165,142 @@
             <div id="tab-insumos" class="tab-content space-y-8">
                 <section class="section-card">
                     <div class="flex justify-between items-center mb-8">
-                        <h2 class="font-black text-2xl uppercase tracking-tighter">Control de Renovaciones</h2>
-                        <span class="text-[10px] font-black text-gray-400 uppercase">Sucursal: <span id="insumos-branch" class="text-blue-600">...</span></span>
+                        <h2 class="font-black text-2xl uppercase tracking-tighter">Renovaciones</h2>
+                        <span id="insumos-branch" class="text-[10px] font-black text-blue-600 uppercase">...</span>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="insumos-grid"></div>
-                    <button onclick="addInsumo()" class="mt-8 w-full border-2 border-dashed border-gray-100 py-6 rounded-3xl text-xs font-black text-gray-400 hover:border-blue-400 hover:text-blue-600 transition-all uppercase">+ Agregar Material para Renovación</button>
+                    <button onclick="addInsumo()" class="mt-8 w-full border-2 border-dashed border-gray-100 py-6 rounded-3xl text-xs font-black text-gray-400 hover:border-blue-400 hover:text-blue-600 transition-all uppercase">+ Agregar Material</button>
                 </section>
             </div>
         </main>
     </div>
 
-    <!-- MODAL DE REPORTE -->
-    <div id="report-modal" class="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
-        <div class="bg-white w-full max-w-4xl rounded-[32px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            <div class="p-8 border-b border-gray-100 flex justify-between items-center bg-slate-50">
-                <div>
-                    <h2 class="text-2xl font-black uppercase tracking-tight">Reporte Consolidado AM</h2>
-                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nube sincronizada</p>
-                </div>
-                <button onclick="closeReport()" class="w-10 h-10 flex items-center justify-center bg-white rounded-full text-gray-400 hover:text-red-500 shadow-sm transition-all font-bold">✕</button>
-            </div>
-            <div class="p-8 overflow-y-auto flex-1">
-                <div id="report-visual-preview" class="report-preview p-8 border border-gray-100 rounded-2xl bg-slate-50 text-slate-700 whitespace-pre-wrap text-[12px] font-mono"></div>
-            </div>
-            <div class="p-8 border-t border-gray-100 bg-white flex gap-4">
-                <button onclick="downloadReport()" class="flex-1 bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase hover:bg-black transition-all">Descargar .TXT</button>
-                <button onclick="copyToClipboard()" class="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-black text-xs uppercase hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all">Copiar al Portapapeles</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- TOAST -->
     <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-8 py-4 rounded-2xl shadow-2xl opacity-0 pointer-events-none transition-all font-black text-[10px] uppercase tracking-widest z-[100]"></div>
 
-    <!-- FIREBASE SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Global variables provided by environment
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'am-matrix-hub-default';
+        // CONFIGURACIÓN DE ACCESO
+        const MASTER_PASSWORD = "Cremalab#2026"; 
 
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        // Variables de entorno de Google (Solo funcionan dentro del Chat)
+        const cloudConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const cloudAppId = typeof __app_id !== 'undefined' ? __app_id : null;
+
+        let db = null;
+        let auth = null;
+        let isCloudMode = false;
+
+        // Inicializar Firebase solo si hay config
+        if (cloudConfig) {
+            try {
+                const app = initializeApp(cloudConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                isCloudMode = true;
+                document.getElementById('connection-label').innerText = 'Cloud Sync Activo';
+            } catch (e) {
+                console.warn("Falla en Cloud Config, usando modo local.");
+            }
+        }
 
         // App State
         let currentBranch = 'mty';
-        let data = {
+        let data = JSON.parse(localStorage.getItem('am_local_data')) || {
             mty: { label: 'Monterrey', leads: 0, goal: 1350, budget: 0, metaMaterials: { awa: [], pro: [], ret: [] }, events: [], express: [], insumos: [] },
             cdmx: { label: 'CDMX', leads: 0, goal: 800, budget: 0, metaMaterials: {awa:[], pro:[], ret:[]}, events: [], express: [], insumos: [] },
             slw: { label: 'Saltillo', leads: 0, goal: 350, budget: 0, metaMaterials: {awa:[], pro:[], ret:[]}, events: [], express: [], insumos: [] }
         };
 
-        const MASTER_PASSWORD = "Cremalab#2026";
-
-        // Login Function
+        // Login Handler
         window.checkAuth = async () => {
             const pass = document.getElementById('auth-pass').value;
-            const btn = document.getElementById('login-btn');
-            const error = document.getElementById('auth-error');
-
-            if (pass !== MASTER_PASSWORD) {
+            if (pass === MASTER_PASSWORD) {
+                if (isCloudMode) {
+                    try {
+                        await signInAnonymously(auth);
+                        // El listener onAuthStateChanged abrirá la app
+                    } catch (e) {
+                        openAppLocally();
+                    }
+                } else {
+                    openAppLocally();
+                }
+            } else {
+                const error = document.getElementById('auth-error');
                 error.classList.remove('hidden');
                 setTimeout(() => error.classList.add('hidden'), 2000);
-                return;
-            }
-
-            btn.disabled = true;
-            btn.innerHTML = '<div class="loading-spinner"></div>';
-
-            try {
-                await signInAnonymously(auth);
-                // El listener onAuthStateChanged se encargará del resto
-            } catch (e) {
-                console.error(e);
-                btn.disabled = false;
-                btn.innerText = 'Entrar al Sistema';
-                error.classList.remove('hidden');
             }
         };
 
-        // Auth Listener
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                document.getElementById('login-overlay').style.opacity = '0';
-                setTimeout(() => {
-                    document.getElementById('login-overlay').style.display = 'none';
-                    document.getElementById('main-app').style.display = 'block';
-                    initDataSync();
-                }, 500);
-            }
-        });
+        function openAppLocally() {
+            document.getElementById('login-overlay').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('login-overlay').style.display = 'none';
+                document.getElementById('main-app').style.display = 'block';
+                renderAll();
+            }, 500);
+        }
 
-        // Data Sync logic
-        async function initDataSync() {
-            if (!auth.currentUser) return;
+        if (auth) {
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    openAppLocally();
+                    initCloudSync();
+                }
+            });
+        }
 
-            // Document path for central data
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'master_data');
-            
-            // Listen for changes
+        async function initCloudSync() {
+            const docRef = doc(db, 'artifacts', cloudAppId, 'public', 'data', 'master_data');
             onSnapshot(docRef, (docSnap) => {
                 if (docSnap.exists()) {
                     data = docSnap.data();
                     renderAll();
-                } else {
-                    // Si no existe, crear el inicial
-                    setDoc(docRef, data);
                 }
-            }, (error) => {
-                showToast("Error al sincronizar con la nube");
-                console.error(error);
             });
         }
 
         window.saveAll = async () => {
-            if (!auth.currentUser) return;
-            const saveBtn = document.getElementById('save-btn');
-            saveBtn.disabled = true;
-            saveBtn.innerHTML = '<div class="loading-spinner"></div>';
-
-            try {
-                // Actualizamos los valores de los inputs antes de guardar
-                saveCurrentInputs(); 
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'master_data');
-                await setDoc(docRef, data);
-                showToast("Sincronizado con la Nube");
-            } catch (e) {
-                showToast("Error al guardar");
-                console.error(e);
-            } finally {
-                saveBtn.disabled = false;
-                saveBtn.innerText = 'Sincronizar';
+            updateDataFromInputs();
+            localStorage.setItem('am_local_data', JSON.stringify(data));
+            
+            if (isCloudMode && auth.currentUser) {
+                const saveBtn = document.getElementById('save-btn');
+                saveBtn.innerHTML = '<div class="loading-spinner"></div>';
+                try {
+                    const docRef = doc(db, 'artifacts', cloudAppId, 'public', 'data', 'master_data');
+                    await setDoc(docRef, data);
+                    showToast("Sincronizado en la Nube");
+                } catch (e) {
+                    showToast("Error de Sincronización");
+                } finally {
+                    saveBtn.innerText = 'Guardar';
+                }
+            } else {
+                showToast("Guardado Localmente");
             }
         };
 
-        function saveCurrentInputs() {
+        function updateDataFromInputs() {
             const b = data[currentBranch];
             b.leads = parseInt(document.getElementById('leads-actual').value) || 0;
             b.budget = parseFloat(document.getElementById('budget-actual').value) || 0;
         }
 
-        // Window exposed functions for the rest of the app logic
-        window.logout = () => { auth.signOut(); location.reload(); };
+        window.logout = () => { if(auth) auth.signOut(); location.reload(); };
         window.switchTab = (id) => {
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(id).classList.add('active');
             document.getElementById('btn-'+id).classList.add('active');
         };
-
-        window.switchBranch = (id) => {
-            saveCurrentInputs();
-            currentBranch = id;
-            renderAll();
-            showToast(`Cambio a: ${data[id].label}`);
-        };
+        window.switchBranch = (id) => { updateDataFromInputs(); currentBranch = id; renderAll(); };
 
         function renderAll() {
             const b = data[currentBranch];
-            if (!b) return;
             document.getElementById('label-sucursal').innerText = b.label;
             document.getElementById('insumos-branch').innerText = b.label;
             document.getElementById('leads-actual').value = b.leads;
@@ -359,112 +314,53 @@
 
         function renderMetaMaterials() {
             const b = data[currentBranch];
-            const container = document.getElementById('meta-materials');
-            container.innerHTML = ['awa', 'pro', 'ret'].map(p => `
-                <div class="space-y-4">
-                    <h4 class="text-[10px] font-black uppercase text-gray-400 border-b pb-2">${p}</h4>
+            document.getElementById('meta-materials').innerHTML = ['awa', 'pro', 'ret'].map(p => `
+                <div class="section-card">
+                    <h4 class="text-[10px] font-black uppercase text-gray-400 mb-4">${p}</h4>
                     <div class="space-y-2">
                         ${(b.metaMaterials[p] || []).map((m, i) => `
                             <div class="flex items-center gap-2 p-2 bg-slate-50 rounded-lg text-[11px] font-bold">
                                 <input type="checkbox" ${m.d ? 'checked' : ''} onchange="toggleMetaMat('${p}',${i})" class="w-4 h-4">
                                 <input type="text" value="${m.t}" onchange="editMetaMat('${p}',${i},this.value)" class="bg-transparent flex-1 outline-none ${m.d ? 'line-through text-gray-300' : ''}">
-                            </div>
-                        `).join('')}
+                            </div>`).join('')}
                     </div>
-                    <button onclick="addMetaMat('${p}')" class="text-[9px] font-black text-blue-500 uppercase">+ Add</button>
-                </div>
-            `).join('');
+                    <button onclick="addMetaMat('${p}')" class="mt-4 text-[9px] font-black text-blue-500 uppercase">+ Add</button>
+                </div>`).join('');
         }
 
         function renderEvents() {
-            const container = document.getElementById('events-container');
-            container.innerHTML = (data[currentBranch].events || []).map((ev, i) => {
-                const totalCost = (ev.logistics || []).reduce((acc, curr) => acc + (parseFloat(curr.c) || 0), 0);
-                return `
+            document.getElementById('events-container').innerHTML = (data[currentBranch].events || []).map((ev, i) => `
                 <div class="section-card">
-                    <div class="flex flex-col md:flex-row justify-between mb-6 gap-4">
-                        <div class="flex-1">
-                            <input type="text" value="${ev.name}" onchange="data['${currentBranch}'].events[${i}].name=this.value" class="text-xl font-black uppercase text-slate-800 outline-none block w-full">
-                            <input type="date" value="${ev.date}" onchange="data['${currentBranch}'].events[${i}].date=this.value" class="text-xs font-bold text-blue-500 outline-none mt-1 bg-transparent">
+                    <input type="text" value="${ev.name}" onchange="data['${currentBranch}'].events[${i}].name=this.value" class="text-xl font-black uppercase outline-none block w-full mb-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-2">
+                            ${(ev.digital || []).map((d, di) => `<div class="flex items-center gap-2 text-xs"><input type="checkbox" ${d.d ? 'checked' : ''} onchange="toggleEvTask(${i},'digital',${di})"> ${d.t}</div>`).join('')}
+                            <button onclick="addEvTask(${i},'digital')" class="text-[9px] font-bold text-blue-500 uppercase">+ Add</button>
                         </div>
-                        <div class="bg-blue-50 px-6 py-2 rounded-2xl flex flex-col items-end justify-center min-w-[150px]">
-                            <span class="text-[9px] font-black text-blue-400 uppercase">Producción</span>
-                            <span class="text-xl font-black text-blue-600">$${totalCost.toLocaleString()}</span>
+                        <div class="space-y-2">
+                            ${(ev.logistics || []).map((l, li) => `<div class="flex items-center gap-2 text-xs"><input type="checkbox" ${l.d ? 'checked' : ''} onchange="toggleEvTask(${i},'logistics',${li})"> ${l.t} ($${l.c})</div>`).join('')}
+                            <button onclick="addEvTask(${i},'logistics')" class="text-[9px] font-bold text-blue-500 uppercase">+ Add</button>
                         </div>
-                    </div>
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 border-t pt-6">
-                        <div>
-                            <h4 class="text-[10px] font-black uppercase text-slate-400 mb-4">Activos Digitales</h4>
-                            <div class="space-y-2">
-                                ${(ev.digital || []).map((d, di) => `
-                                    <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
-                                        <input type="checkbox" ${d.d ? 'checked' : ''} onchange="toggleEvTask(${i},'digital',${di})" class="w-5 h-5">
-                                        <input type="text" value="${d.t}" onchange="editEvTask(${i},'digital',${di},this.value)" class="flex-1 bg-transparent text-xs font-bold outline-none ${d.d ? 'line-through text-gray-300' : ''}">
-                                    </div>
-                                `).join('')}
-                                <button onclick="addEvTask(${i},'digital')" class="text-[9px] font-black text-blue-500 uppercase">+ Add</button>
-                            </div>
-                        </div>
-                        <div>
-                            <h4 class="text-[10px] font-black uppercase text-slate-400 mb-4">Logística y Costos</h4>
-                            <div class="space-y-2">
-                                ${(ev.logistics || []).map((l, li) => `
-                                    <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
-                                        <input type="checkbox" ${l.d ? 'checked' : ''} onchange="toggleEvTask(${i},'logistics',${li})" class="w-5 h-5">
-                                        <input type="text" value="${l.t}" onchange="editEvTask(${i},'logistics',${li},this.value)" class="flex-1 bg-transparent text-xs font-bold outline-none ${l.d ? 'line-through text-gray-300' : ''}">
-                                        <div class="flex items-center text-xs font-black text-slate-400">$<input type="number" value="${l.c}" onchange="editEvCost(${i},${li},this.value)" class="w-16 bg-transparent outline-none ml-1"></div>
-                                    </div>
-                                `).join('')}
-                                <button onclick="addEvTask(${i},'logistics')" class="text-[9px] font-black text-blue-500 uppercase">+ Add</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>`;
-            }).join('');
-        }
-
-        function renderExpress() {
-            const b = data[currentBranch];
-            const container = document.getElementById('express-list');
-            document.getElementById('express-count').innerText = (b.express || []).length;
-            container.innerHTML = (b.express || []).map((ex, i) => `
-                <div class="flex flex-col md:flex-row md:items-center justify-between bg-slate-800 p-5 rounded-2xl border border-slate-700 group hover:border-blue-500 transition-all">
-                    <div class="flex items-center gap-4">
-                        <div class="text-[10px] font-black text-slate-500 bg-slate-900 px-3 py-1 rounded-lg">${ex.date}</div>
-                        <h3 class="font-bold text-sm text-blue-100">${ex.name}</h3>
-                    </div>
-                    <div class="flex items-center gap-4 mt-4 md:mt-0">
-                        <a href="${ex.link}" target="_blank" class="text-[10px] font-black text-blue-400 underline uppercase hover:text-white">Asana</a>
-                        <button onclick="removeExpress(${i})" class="text-slate-500 hover:text-red-500">✕</button>
                     </div>
                 </div>`).join('');
         }
 
+        function renderExpress() {
+            document.getElementById('express-count').innerText = (data[currentBranch].express || []).length;
+            document.getElementById('express-list').innerHTML = (data[currentBranch].express || []).map((ex, i) => `
+                <div class="bg-slate-800 p-4 rounded-xl flex justify-between items-center">
+                    <span class="text-sm font-bold text-blue-100">${ex.name}</span>
+                    <button onclick="removeExpress(${i})" class="text-slate-500">✕</button>
+                </div>`).join('');
+        }
+
         function renderInsumos() {
-            const container = document.getElementById('insumos-grid');
-            container.innerHTML = (data[currentBranch].insumos || []).map((ins, i) => `
-                <div class="p-6 rounded-[32px] border border-gray-100 shadow-sm relative group bg-white hover:shadow-lg transition-all">
-                    <div class="flex justify-between items-start mb-6">
-                        <input type="text" value="${ins.t}" onchange="data['${currentBranch}'].insumos[${i}].t=this.value" class="text-sm font-black text-slate-800 bg-transparent outline-none w-full">
-                        <button onclick="removeInsumo(${i})" class="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all">✕</button>
-                    </div>
-                    <div class="grid grid-cols-2 gap-4 mb-6">
-                        <div>
-                            <label class="text-[8px] font-black text-gray-300 uppercase block mb-1">Última Rev.</label>
-                            <input type="date" value="${ins.last}" onchange="data['${currentBranch}'].insumos[${i}].last=this.value" class="text-[11px] font-bold text-slate-500 bg-slate-50 rounded-lg p-2 w-full outline-none">
-                        </div>
-                        <div>
-                            <label class="text-[8px] font-black text-gray-300 uppercase block mb-1">Próxima Rev.</label>
-                            <input type="date" value="${ins.next}" onchange="data['${currentBranch}'].insumos[${i}].next=this.value" class="text-[11px] font-bold text-blue-600 bg-blue-50 rounded-lg p-2 w-full outline-none">
-                        </div>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="status-badge ${ins.status.includes('OK') ? 'status-done' : 'status-pending'}">${ins.status}</span>
-                        <select onchange="data['${currentBranch}'].insumos[${i}].status=this.value; renderInsumos();" class="text-[9px] font-black text-gray-400 outline-none bg-transparent">
-                            <option value="OK">OK</option>
-                            <option value="A Renovar">A Renovar</option>
-                            <option value="Urgente">Urgente</option>
-                        </select>
+            document.getElementById('insumos-grid').innerHTML = (data[currentBranch].insumos || []).map((ins, i) => `
+                <div class="p-6 rounded-3xl border border-gray-100 bg-white">
+                    <input type="text" value="${ins.t}" onchange="data['${currentBranch}'].insumos[${i}].t=this.value" class="font-black text-sm block w-full mb-4">
+                    <div class="flex justify-between items-center">
+                        <span class="status-badge ${ins.status === 'OK' ? 'status-done' : 'status-pending'}">${ins.status}</span>
+                        <button onclick="removeInsumo(${i})" class="text-gray-300">✕</button>
                     </div>
                 </div>`).join('');
         }
@@ -473,95 +369,30 @@
             const b = data[currentBranch];
             const current = parseInt(document.getElementById('leads-actual').value) || 0;
             const budget = parseFloat(document.getElementById('budget-actual').value) || 0;
-            const cpl = current > 0 ? (budget / current).toFixed(2) : "0.00";
-            const percent = Math.min(((current / b.goal) * 100), 100).toFixed(0);
             document.getElementById('leads-count').innerText = current.toLocaleString();
             document.getElementById('leads-goal').innerText = `/ ${b.goal.toLocaleString()}`;
-            document.getElementById('leads-bar').style.width = `${percent}%`;
-            document.getElementById('cpl-display').innerText = `$${cpl}`;
+            document.getElementById('leads-bar').style.width = `${Math.min((current/b.goal)*100, 100)}%`;
+            document.getElementById('cpl-display').innerText = `$${(current > 0 ? budget/current : 0).toFixed(2)}`;
         };
 
-        // Mutators exposed
-        window.addMetaMat = (p) => { data[currentBranch].metaMaterials[p].push({t:'Nuevo Material', d:false}); renderMetaMaterials(); };
+        window.addMetaMat = (p) => { data[currentBranch].metaMaterials[p].push({t:'Nuevo', d:false}); renderMetaMaterials(); };
         window.toggleMetaMat = (p,i) => { data[currentBranch].metaMaterials[p][i].d = !data[currentBranch].metaMaterials[p][i].d; renderMetaMaterials(); };
         window.editMetaMat = (p,i,v) => { data[currentBranch].metaMaterials[p][i].t = v; };
-        window.addEvent = () => { data[currentBranch].events.push({name:'Nuevo Evento', date:'', digital:[], logistics:[]}); renderEvents(); };
-        window.addEvTask = (i, type) => { 
-            if(type==='digital') data[currentBranch].events[i].digital.push({t:'Tarea Digital', d:false});
-            else data[currentBranch].events[i].logistics.push({t:'Costo Producción', c:0, d:false});
-            renderEvents(); 
-        };
+        window.addEvent = () => { data[currentBranch].events.push({name:'Evento', digital:[], logistics:[]}); renderEvents(); };
+        window.addEvTask = (i, type) => { if(type==='digital') data[currentBranch].events[i].digital.push({t:'Tarea', d:false}); else data[currentBranch].events[i].logistics.push({t:'Costo', c:0, d:false}); renderEvents(); };
         window.toggleEvTask = (i, type, idx) => { data[currentBranch].events[i][type][idx].d = !data[currentBranch].events[i][type][idx].d; renderEvents(); };
-        window.editEvTask = (i, type, idx, v) => { data[currentBranch].events[i][type][idx].t = v; };
-        window.editEvCost = (i, idx, v) => { data[currentBranch].events[i].logistics[idx].c = parseFloat(v) || 0; renderEvents(); };
-        window.addExpress = () => {
-            const name = document.getElementById('ex-nom').value;
-            const link = document.getElementById('ex-link').value;
-            if(name) {
-                data[currentBranch].express.push({ name, link: link || '#', date: new Date().toLocaleDateString() });
-                document.getElementById('ex-nom').value = '';
-                document.getElementById('ex-link').value = '';
-                renderExpress();
-            }
-        };
-        window.removeExpress = (i) => { data[currentBranch].express.splice(i, 1); renderExpress(); };
-        window.addInsumo = () => { data[currentBranch].insumos.push({t:'Material Sucursal', last:'', next:'', status:'OK'}); renderInsumos(); };
+        window.addExpress = () => { const name = document.getElementById('ex-nom').value; if(name){ data[currentBranch].express.push({name}); renderExpress(); } };
+        window.removeExpress = (i) => { data[currentBranch].express.splice(i,1); renderExpress(); };
+        window.addInsumo = () => { data[currentBranch].insumos.push({t:'Material', status:'OK'}); renderInsumos(); };
         window.removeInsumo = (i) => { data[currentBranch].insumos.splice(i,1); renderInsumos(); };
 
         function showToast(m) {
             const t = document.getElementById('toast');
-            t.innerText = m;
-            t.classList.replace('opacity-0', 'opacity-100');
+            t.innerText = m; t.classList.replace('opacity-0', 'opacity-100');
             setTimeout(() => t.classList.replace('opacity-100', 'opacity-0'), 2000);
         }
 
-        window.openReport = () => {
-            let report = `ACCOUNT MATRIX HUB - REPORTE DE GESTIÓN\n`;
-            report += `FECHA: ${new Date().toLocaleDateString('es-MX')}\n`;
-            report += `SINCRO: Nube Cloud Firestore\n`;
-            report += `------------------------------------------------------------\n\n`;
-
-            Object.keys(data).forEach(k => {
-                const b = data[k];
-                const cpl = b.leads > 0 ? (b.budget / b.leads).toFixed(2) : "0.00";
-                report += `[ SUCURSAL: ${b.label.toUpperCase()} ]\n`;
-                report += `   METAS META: ${b.leads} / ${b.goal} | CPL: $${cpl}\n`;
-                if(b.events && b.events.length > 0) {
-                    report += `   EVENTOS ACTIVOS: ${b.events.length}\n`;
-                }
-                report += `\n`;
-            });
-
-            document.getElementById('report-visual-preview').innerText = report;
-            document.getElementById('report-modal').style.display = 'flex';
-        };
-
-        window.closeReport = () => { document.getElementById('report-modal').style.display = 'none'; };
-        window.downloadReport = () => {
-            const text = document.getElementById('report-visual-preview').innerText;
-            const blob = new Blob([text], { type: 'text/plain' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `Reporte_AM_Cloud_${new Date().toLocaleDateString()}.txt`;
-            a.click();
-            window.URL.revokeObjectURL(url);
-        };
-        window.copyToClipboard = () => {
-            const text = document.getElementById('report-visual-preview').innerText;
-            const el = document.createElement('textarea');
-            el.value = text;
-            document.body.appendChild(el);
-            el.select();
-            document.execCommand('copy');
-            document.body.removeChild(el);
-            showToast("Reporte copiado");
-        };
-
-        // Escuchar Enter en login
-        document.getElementById('auth-pass').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') checkAuth();
-        });
+        document.getElementById('auth-pass').addEventListener('keypress', (e) => { if(e.key==='Enter') checkAuth(); });
     </script>
 </body>
 </html>
