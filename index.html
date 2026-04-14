@@ -9,6 +9,7 @@
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #1e293b; overflow-x: hidden; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         input[type="number"]::-webkit-inner-spin-button { display: none; }
         
         .section-card { background: white; border-radius: 24px; padding: 2rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); border: 1px solid #f1f5f9; }
@@ -22,12 +23,6 @@
         .status-badge { font-size: 9px; font-weight: 900; text-transform: uppercase; padding: 2px 8px; border-radius: 6px; }
         .status-pending { background: #fee2e2; color: #ef4444; }
         .status-done { background: #dcfce7; color: #16a34a; }
-
-        /* Estilos específicos para la visualización multimedia */
-        .funnel-carousel { display: flex; overflow-x: auto; gap: 1.5rem; padding: 1rem 0 2rem 0; scroll-snap-type: x mandatory; }
-        .multimedia-card { min-width: 320px; scroll-snap-align: start; flex-shrink: 0; background: white; border-radius: 30px; padding: 1.5rem; border: 1px solid #f1f5f9; }
-        .media-preview { width: 100%; aspect-ratio: 9/16; background: #000; border-radius: 20px; margin-top: 15px; overflow: hidden; position: relative; }
-        .media-preview iframe, .media-preview img { width: 100%; height: 100%; object-fit: cover; border: none; }
 
         #login-overlay {
             position: fixed;
@@ -50,6 +45,31 @@
             animation: spin 1s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Estilos específicos para los Arts */
+        .art-card {
+            min-width: 220px;
+            height: 380px;
+            background: white;
+            border-radius: 1.5rem;
+            padding: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            border: 1px solid #f1f5f9;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .art-card:hover { transform: translateY(-4px); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); }
+        .art-preview {
+            height: 100%;
+            background: #f8fafc;
+            border-radius: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
     </style>
 </head>
 <body class="min-h-screen pb-20">
@@ -106,10 +126,12 @@
                 <button onclick="switchTab('tab-eventos')" id="btn-tab-eventos" class="tab-btn">II. Gestión de Eventos</button>
                 <button onclick="switchTab('tab-express')" id="btn-tab-express" class="tab-btn">III. Express</button>
                 <button onclick="switchTab('tab-insumos')" id="btn-tab-insumos" class="tab-btn">IV. Insumos</button>
+                <button onclick="switchTab('tab-drive')" id="btn-tab-drive" class="tab-btn">V. Multimedia Drive</button>
             </div>
         </nav>
 
         <main class="max-w-7xl mx-auto py-8 px-6">
+            <!-- TAB META -->
             <div id="tab-meta" class="tab-content active space-y-8">
                 <section class="section-card border-l-8 border-l-blue-600">
                     <div class="flex justify-between items-center mb-6">
@@ -141,19 +163,9 @@
                     </div>
                 </section>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8" id="meta-materials"></div>
-
-                <!-- SECCIÓN AGREGADA: VISUALIZADOR MULTIMEDIA -->
-                <div class="mt-12">
-                    <div class="mb-4 flex items-center gap-2">
-                        <div class="h-[2px] w-8 bg-blue-600"></div>
-                        <h3 class="font-black text-xs uppercase tracking-widest text-slate-400 italic">Visualizador Multimedia Drive Arts</h3>
-                    </div>
-                    <div class="funnel-carousel no-scrollbar" id="multimedia-carousel">
-                        <!-- Se inyectan los artes dinámicamente -->
-                    </div>
-                </div>
             </div>
 
+            <!-- TAB EVENTOS -->
             <div id="tab-eventos" class="tab-content space-y-8">
                 <div class="flex justify-between items-end mb-4">
                     <h2 class="font-black text-2xl uppercase tracking-tighter">Planificación de Eventos</h2>
@@ -162,6 +174,7 @@
                 <div id="events-container" class="space-y-6"></div>
             </div>
 
+            <!-- TAB EXPRESS -->
             <div id="tab-express" class="tab-content space-y-8">
                 <div class="section-card bg-slate-900 border-none text-white">
                     <div class="flex justify-between items-center mb-10">
@@ -179,6 +192,7 @@
                 </div>
             </div>
 
+            <!-- TAB INSUMOS -->
             <div id="tab-insumos" class="tab-content space-y-8">
                 <section class="section-card">
                     <div class="flex justify-between items-center mb-8">
@@ -188,6 +202,19 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="insumos-grid"></div>
                     <button onclick="addInsumo()" class="mt-8 w-full border-2 border-dashed border-gray-100 py-6 rounded-3xl text-xs font-black text-gray-400 hover:border-blue-400 hover:text-blue-600 transition-all uppercase">+ Agregar Material</button>
                 </section>
+            </div>
+
+            <!-- TAB DRIVE (NUEVA) -->
+            <div id="tab-drive" class="tab-content space-y-12">
+                <div class="flex items-center gap-2 mb-2">
+                    <div class="w-8 h-[3px] bg-blue-600"></div>
+                    <h3 class="text-gray-400 text-[10px] font-black italic tracking-widest uppercase">
+                        Visualizador Multimedia Drive Arts
+                    </h3>
+                </div>
+                <div id="drive-container" class="space-y-16">
+                    <!-- Se inyectan AWA, PRO y RET aquí -->
+                </div>
             </div>
         </main>
     </div>
@@ -199,9 +226,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // CONFIGURACIÓN DE ACCESO
         const MASTER_PASSWORD = "Cremalab#2026"; 
-
         const cloudConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         const cloudAppId = typeof __app_id !== 'undefined' ? __app_id : null;
 
@@ -217,30 +242,23 @@
                 isCloudMode = true;
                 document.getElementById('connection-label').innerText = 'Cloud Sync Activo';
             } catch (e) {
-                console.warn("Falla en Cloud Config, usando modo local.");
+                console.warn("Falla en Cloud Config.");
             }
         }
 
         let currentBranch = 'mty';
-        // Ajustamos la estructura de datos para incluir 'arts'
         let data = JSON.parse(localStorage.getItem('am_local_data')) || {
-            mty: { label: 'Monterrey', leads: 0, goal: 1350, budget: 0, metaMaterials: { awa: [], pro: [], ret: [] }, arts: { awa: [], pro: [], ret: [] }, events: [], express: [], insumos: [] },
-            cdmx: { label: 'CDMX', leads: 0, goal: 800, budget: 0, metaMaterials: {awa:[], pro:[], ret:[]}, arts: { awa: [], pro: [], ret: [] }, events: [], express: [], insumos: [] },
-            slw: { label: 'Saltillo', leads: 0, goal: 350, budget: 0, metaMaterials: {awa:[], pro:[], ret:[]}, arts: { awa: [], pro: [], ret: [] }, events: [], express: [], insumos: [] }
+            mty: { label: 'Monterrey', leads: 0, goal: 1350, budget: 0, metaMaterials: { awa: [], pro: [], ret: [] }, events: [], express: [], insumos: [], drive: { awa: 12, pro: 6, ret: 8 } },
+            cdmx: { label: 'CDMX', leads: 0, goal: 800, budget: 0, metaMaterials: {awa:[], pro:[], ret:[]}, events: [], express: [], insumos: [], drive: { awa: 5, pro: 3, ret: 4 } },
+            slw: { label: 'Saltillo', leads: 0, goal: 350, budget: 0, metaMaterials: {awa:[], pro:[], ret:[]}, events: [], express: [], insumos: [], drive: { awa: 4, pro: 2, ret: 2 } }
         };
 
         window.checkAuth = async () => {
             const pass = document.getElementById('auth-pass').value;
             if (pass === MASTER_PASSWORD) {
                 if (isCloudMode) {
-                    try {
-                        await signInAnonymously(auth);
-                    } catch (e) {
-                        openAppLocally();
-                    }
-                } else {
-                    openAppLocally();
-                }
+                    try { await signInAnonymously(auth); } catch (e) { openAppLocally(); }
+                } else { openAppLocally(); }
             } else {
                 const error = document.getElementById('auth-error');
                 error.classList.remove('hidden');
@@ -259,42 +277,30 @@
 
         if (auth) {
             onAuthStateChanged(auth, (user) => {
-                if (user) {
-                    openAppLocally();
-                    initCloudSync();
-                }
+                if (user) { openAppLocally(); initCloudSync(); }
             });
         }
 
         async function initCloudSync() {
             const docRef = doc(db, 'artifacts', cloudAppId, 'public', 'data', 'master_data');
             onSnapshot(docRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    data = docSnap.data();
-                    renderAll();
-                }
+                if (docSnap.exists()) { data = docSnap.data(); renderAll(); }
             });
         }
 
         window.saveAll = async () => {
             updateDataFromInputs();
             localStorage.setItem('am_local_data', JSON.stringify(data));
-            
             if (isCloudMode && auth.currentUser) {
                 const saveBtn = document.getElementById('save-btn');
                 saveBtn.innerHTML = '<div class="loading-spinner"></div>';
                 try {
                     const docRef = doc(db, 'artifacts', cloudAppId, 'public', 'data', 'master_data');
                     await setDoc(docRef, data);
-                    showToast("Sincronizado en la Nube");
-                } catch (e) {
-                    showToast("Error de Sincronización");
-                } finally {
-                    saveBtn.innerText = 'Guardar';
-                }
-            } else {
-                showToast("Guardado Localmente");
-            }
+                    showToast("Sincronizado");
+                } catch (e) { showToast("Error"); } 
+                finally { saveBtn.innerText = 'Guardar'; }
+            } else { showToast("Guardado Local"); }
         };
 
         function updateDataFromInputs() {
@@ -314,9 +320,6 @@
 
         function renderAll() {
             const b = data[currentBranch];
-            // Aseguramos que la estructura de arts exista para sucursales viejas
-            if(!b.arts) b.arts = { awa: [], pro: [], ret: [] };
-
             document.getElementById('label-sucursal').innerText = b.label;
             document.getElementById('insumos-branch').innerText = b.label;
             document.getElementById('leads-actual').value = b.leads;
@@ -325,10 +328,57 @@
             renderEvents();
             renderExpress();
             renderInsumos();
-            renderMultimedia(); // Función agregada
+            renderDrive();
             calculateMeta();
         }
 
+        function renderDrive() {
+            const b = data[currentBranch];
+            const stages = [
+                { id: 'awa', title: 'AWA', count: b.drive?.awa || 0, icon: 'play' },
+                { id: 'pro', title: 'PRO', count: b.drive?.pro || 0, icon: 'image' },
+                { id: 'ret', title: 'RET', count: b.drive?.ret || 0, icon: 'play' }
+            ];
+
+            document.getElementById('drive-container').innerHTML = stages.map((stage, idx) => `
+                <div class="w-full">
+                    <div class="flex justify-between items-center mb-6 border-b border-gray-100 pb-3">
+                        <div class="flex items-center gap-3">
+                            <div class="bg-gray-900 text-white text-[9px] font-black px-2 py-1 rounded">ETAPA ${idx+1}</div>
+                            <h4 class="text-xl font-black text-gray-800 uppercase tracking-tighter">${stage.title} <span class="text-blue-600">DRIVE</span></h4>
+                            <span class="text-gray-400 text-[10px] font-bold uppercase tracking-widest ml-4">${stage.count} ARCHIVOS</span>
+                        </div>
+                    </div>
+                    <div class="relative">
+                        <div class="flex gap-4 overflow-x-auto pb-4 no-scrollbar snap-x scroll-smooth">
+                            ${Array.from({ length: stage.count }).map((_, i) => `
+                                <div class="art-card snap-start">
+                                    <div class="art-preview">
+                                        <div class="opacity-20">
+                                            ${stage.icon === 'play' ? 
+                                                '<svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>' : 
+                                                '<svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>'
+                                            }
+                                        </div>
+                                        <div class="absolute bottom-3 left-3 right-3 bg-white/90 backdrop-blur-md px-2 py-1.5 rounded-lg border border-white/50 shadow-sm">
+                                            <span class="text-[8px] font-black text-gray-800 uppercase truncate block">
+                                                ${stage.id}_file_${i+1}.ext
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                            <div class="min-w-[120px] h-[380px] border-2 border-dashed border-gray-100 rounded-[1.5rem] flex flex-col items-center justify-center text-gray-300 hover:text-blue-400 hover:border-blue-200 transition-all cursor-pointer">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                <span class="text-[8px] font-black uppercase mt-2">Sync</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // --- RESTO DE FUNCIONES DE RENDER (IGUAL QUE ANTES) ---
         function renderMetaMaterials() {
             const b = data[currentBranch];
             document.getElementById('meta-materials').innerHTML = ['awa', 'pro', 'ret'].map(p => `
@@ -345,60 +395,19 @@
                 </div>`).join('');
         }
 
-        // LÓGICA DE MULTIMEDIA AGREGADA
-        function renderMultimedia() {
-            const b = data[currentBranch];
-            const container = document.getElementById('multimedia-carousel');
-            container.innerHTML = ['awa', 'pro', 'ret'].map(type => `
-                <div class="multimedia-card">
-                    <div class="flex justify-between items-center mb-4">
-                        <h4 class="font-black text-slate-800 uppercase text-lg">${type} Arts</h4>
-                        <button onclick="addArt('${type}')" class="bg-blue-50 text-blue-600 p-2 rounded-xl hover:bg-blue-600 hover:text-white transition-all">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                        </button>
-                    </div>
-                    <div class="space-y-8">
-                        ${(b.arts[type] || []).map((art, i) => `
-                            <div class="group">
-                                <div class="flex justify-between items-center mb-2">
-                                    <input type="text" value="${art.title}" onchange="editArt('${type}', ${i}, 'title', this.value)" class="text-xs font-black uppercase text-slate-600 outline-none w-full bg-transparent">
-                                    <button onclick="removeArt('${type}', ${i})" class="text-red-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
-                                </div>
-                                <input type="text" value="${art.url}" onchange="editArt('${type}', ${i}, 'url', this.value)" class="text-[9px] text-slate-400 bg-slate-50 w-full p-2 rounded-lg mb-2 outline-none" placeholder="Drive URL">
-                                <div class="media-preview">
-                                    ${renderMedia(art.url)}
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function renderMedia(url) {
-            if(!url) return `<div class="text-slate-600 text-[10px] font-black flex flex-col items-center justify-center h-full gap-2">SIN ARTE</div>`;
-            if(url.includes('drive.google.com')) {
-                const id = url.split('/d/')[1]?.split('/')[0] || url.split('id=')[1];
-                return `<iframe src="https://drive.google.com/file/d/${id}/preview" allow="autoplay" class="absolute inset-0"></iframe>`;
-            }
-            return `<img src="${url}" class="absolute inset-0 w-full h-full object-cover">`;
-        }
-
-        window.addArt = (t) => { data[currentBranch].arts[t].push({title:'Nuevo Arte', url:''}); renderMultimedia(); };
-        window.editArt = (t, i, f, v) => { data[currentBranch].arts[t][i][f] = v; if(f==='url') renderMultimedia(); };
-        window.removeArt = (t, i) => { data[currentBranch].arts[t].splice(i, 1); renderMultimedia(); };
-
         function renderEvents() {
             document.getElementById('events-container').innerHTML = (data[currentBranch].events || []).map((ev, i) => `
                 <div class="section-card">
                     <input type="text" value="${ev.name}" onchange="data['${currentBranch}'].events[${i}].name=this.value" class="text-xl font-black uppercase outline-none block w-full mb-4">
                     <div class="grid grid-cols-2 gap-4">
                         <div class="space-y-2">
-                            ${(ev.digital || []).map((d, di) => `<div class="flex items-center gap-2 text-xs"><input type="checkbox" ${d.d ? 'checked' : ''} onchange="toggleEvTask(${i},'digital',${di})"> ${d.t}</div>`).join('')}
+                            <h5 class="text-[8px] font-black text-blue-500 uppercase mb-2">Digital</h5>
+                            ${(ev.digital || []).map((d, di) => `<div class="flex items-center gap-2 text-xs font-bold text-slate-600"><input type="checkbox" ${d.d ? 'checked' : ''} onchange="toggleEvTask(${i},'digital',${di})"> ${d.t}</div>`).join('')}
                             <button onclick="addEvTask(${i},'digital')" class="text-[9px] font-bold text-blue-500 uppercase">+ Add</button>
                         </div>
                         <div class="space-y-2">
-                            ${(ev.logistics || []).map((l, li) => `<div class="flex items-center gap-2 text-xs"><input type="checkbox" ${l.d ? 'checked' : ''} onchange="toggleEvTask(${i},'logistics',${li})"> ${l.t} ($${l.c})</div>`).join('')}
+                             <h5 class="text-[8px] font-black text-green-500 uppercase mb-2">Logística</h5>
+                            ${(ev.logistics || []).map((l, li) => `<div class="flex items-center gap-2 text-xs font-bold text-slate-600"><input type="checkbox" ${l.d ? 'checked' : ''} onchange="toggleEvTask(${i},'logistics',${li})"> ${l.t}</div>`).join('')}
                             <button onclick="addEvTask(${i},'logistics')" class="text-[9px] font-bold text-blue-500 uppercase">+ Add</button>
                         </div>
                     </div>
@@ -409,15 +418,15 @@
             document.getElementById('express-count').innerText = (data[currentBranch].express || []).length;
             document.getElementById('express-list').innerHTML = (data[currentBranch].express || []).map((ex, i) => `
                 <div class="bg-slate-800 p-4 rounded-xl flex justify-between items-center">
-                    <span class="text-sm font-bold text-blue-100">${ex.name}</span>
-                    <button onclick="removeExpress(${i})" class="text-slate-500">✕</button>
+                    <span class="text-sm font-bold text-blue-100 tracking-tight">${ex.name}</span>
+                    <button onclick="removeExpress(${i})" class="text-slate-500 hover:text-red-400 transition-colors">✕</button>
                 </div>`).join('');
         }
 
         function renderInsumos() {
             document.getElementById('insumos-grid').innerHTML = (data[currentBranch].insumos || []).map((ins, i) => `
                 <div class="p-6 rounded-3xl border border-gray-100 bg-white">
-                    <input type="text" value="${ins.t}" onchange="data['${currentBranch}'].insumos[${i}].t=this.value" class="font-black text-sm block w-full mb-4">
+                    <input type="text" value="${ins.t}" onchange="data['${currentBranch}'].insumos[${i}].t=this.value" class="font-black text-sm block w-full mb-4 outline-none">
                     <div class="flex justify-between items-center">
                         <span class="status-badge ${ins.status === 'OK' ? 'status-done' : 'status-pending'}">${ins.status}</span>
                         <button onclick="removeInsumo(${i})" class="text-gray-300">✕</button>
@@ -438,12 +447,12 @@
         window.addMetaMat = (p) => { data[currentBranch].metaMaterials[p].push({t:'Nuevo', d:false}); renderMetaMaterials(); };
         window.toggleMetaMat = (p,i) => { data[currentBranch].metaMaterials[p][i].d = !data[currentBranch].metaMaterials[p][i].d; renderMetaMaterials(); };
         window.editMetaMat = (p,i,v) => { data[currentBranch].metaMaterials[p][i].t = v; };
-        window.addEvent = () => { data[currentBranch].events.push({name:'Evento', digital:[], logistics:[]}); renderEvents(); };
-        window.addEvTask = (i, type) => { if(type==='digital') data[currentBranch].events[i].digital.push({t:'Tarea', d:false}); else data[currentBranch].events[i].logistics.push({t:'Costo', c:0, d:false}); renderEvents(); };
+        window.addEvent = () => { data[currentBranch].events.push({name:'NUEVO EVENTO', digital:[], logistics:[]}); renderEvents(); };
+        window.addEvTask = (i, type) => { if(type==='digital') data[currentBranch].events[i].digital.push({t:'Nueva Tarea', d:false}); else data[currentBranch].events[i].logistics.push({t:'Nuevo Costo', c:0, d:false}); renderEvents(); };
         window.toggleEvTask = (i, type, idx) => { data[currentBranch].events[i][type][idx].d = !data[currentBranch].events[i][type][idx].d; renderEvents(); };
-        window.addExpress = () => { const name = document.getElementById('ex-nom').value; if(name){ data[currentBranch].express.push({name}); renderExpress(); } };
+        window.addExpress = () => { const name = document.getElementById('ex-nom').value; if(name){ data[currentBranch].express.push({name}); renderExpress(); document.getElementById('ex-nom').value=''; } };
         window.removeExpress = (i) => { data[currentBranch].express.splice(i,1); renderExpress(); };
-        window.addInsumo = () => { data[currentBranch].insumos.push({t:'Material', status:'OK'}); renderInsumos(); };
+        window.addInsumo = () => { data[currentBranch].insumos.push({t:'Material de Renovación', status:'OK'}); renderInsumos(); };
         window.removeInsumo = (i) => { data[currentBranch].insumos.splice(i,1); renderInsumos(); };
 
         function showToast(m) {
