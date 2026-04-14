@@ -50,7 +50,6 @@
             flex: 1; width: 100%; border-radius: 0.8rem; overflow: hidden; background: #f1f5f9;
             position: relative; display: flex; align-items: center; justify-content: center;
         }
-        .art-img { width: 100%; height: 100%; object-fit: cover; }
 
         .carousel-container { position: relative; display: flex; align-items: center; margin: 0 -10px; }
         .carousel-track { scroll-behavior: smooth; display: flex; gap: 1.5rem; overflow-x: auto; padding: 20px 10px; }
@@ -66,6 +65,10 @@
         .carousel-nav.next { right: -22px; }
         
         .empty-art-state { color: #94a3b8; text-align: center; padding: 2rem; border: 2px dashed #f1f5f9; border-radius: 1rem; }
+
+        /* Animación Rayito */
+        .zap-blink { animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
     </style>
 </head>
 <body class="min-h-screen pb-20">
@@ -111,23 +114,20 @@
                     <button onclick="saveAll()" id="save-btn" class="bg-blue-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all flex items-center gap-2">
                         <span>Guardar Cambios</span>
                     </button>
-                    <button onclick="logout()" class="text-slate-400 hover:text-red-500 ml-2 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                    </button>
                 </div>
             </div>
 
             <div class="flex px-8 border-t border-gray-50 overflow-x-auto no-scrollbar bg-white">
                 <button onclick="switchTab('tab-meta')" id="btn-tab-meta" class="tab-btn active italic">I. Embudo Meta</button>
                 <button onclick="switchTab('tab-eventos')" id="btn-tab-eventos" class="tab-btn italic">II. Eventos</button>
-                <button onclick="switchTab('tab-express')" id="btn-tab-express" class="tab-btn italic">III. Log Express</button>
+                <button onclick="switchTab('tab-express')" id="btn-tab-express" class="tab-btn italic">III. Log Express Sync</button>
                 <button onclick="switchTab('tab-insumos')" id="btn-tab-insumos" class="tab-btn italic">IV. Renovaciones</button>
             </div>
         </nav>
 
         <main class="max-w-7xl mx-auto py-8 px-6">
+            <!-- TAB META -->
             <div id="tab-meta" class="tab-content active space-y-12">
-                <!-- Status Meta Header -->
                 <section class="section-card border-l-8 border-l-blue-600">
                     <div class="flex justify-between items-center mb-6">
                         <h2 class="font-black text-slate-800 text-xl uppercase tracking-tighter italic">Status Meta: <span id="label-sucursal" class="text-blue-600">...</span></h2>
@@ -148,19 +148,28 @@
                             </div>
                         </div>
                         <div class="p-6">
-                            <label class="text-[9px] font-black text-gray-400 uppercase block mb-1 tracking-widest">Presupuesto Invertido</label>
+                            <label class="text-[9px] font-black text-gray-400 uppercase block mb-1 tracking-widest">Inversión Meta</label>
                             <div class="flex items-center text-3xl font-black text-green-600 italic">$<input type="number" id="budget-actual" oninput="calculateMeta()" class="bg-transparent w-full outline-none" value="0"></div>
                         </div>
                         <div class="p-6">
-                            <label class="text-[9px] font-black text-gray-400 uppercase block mb-1 tracking-widest">CPL Estimado</label>
+                            <label class="text-[9px] font-black text-gray-400 uppercase block mb-1 tracking-widest">CPL Actual</label>
                             <h2 class="text-3xl font-black text-gray-800 italic" id="cpl-display">$0.00</h2>
                         </div>
                     </div>
                 </section>
 
-                <!-- Visualizador de Carpetas Drive -->
                 <div class="space-y-12">
                     <div class="flex items-center gap-4">
+                        <div class="h-[2px] flex-1 bg-slate-100"></div>
+                        <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] italic">Checklist por Embudo</h3>
+                        <div class="h-[2px] flex-1 bg-slate-100"></div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8" id="meta-checklist-area">
+                        <!-- Columnas AWA, PRO, RET se llenan dinámicamente con checklists -->
+                    </div>
+
+                    <div class="flex items-center gap-4 mt-12">
                         <div class="h-[2px] flex-1 bg-slate-100"></div>
                         <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] italic">Visualizador Real-Time de Artes</h3>
                         <div class="h-[2px] flex-1 bg-slate-100"></div>
@@ -170,20 +179,55 @@
                         <!-- Se llena dinámicamente -->
                     </div>
                 </div>
-
-                <!-- Checklists de Materiales Meta -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-8" id="meta-materials"></div>
             </div>
 
-            <!-- Otros tabs se mantienen por estructura -->
+            <!-- TAB EVENTOS -->
             <div id="tab-eventos" class="tab-content space-y-8">
-                 <div id="events-container" class="space-y-6"></div>
+                <div class="flex justify-between items-end mb-4">
+                    <h2 class="font-black text-2xl uppercase tracking-tighter italic">Planificación de Eventos</h2>
+                    <button onclick="addEvent()" class="bg-blue-600 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase">+ Crear Nuevo Evento</button>
+                </div>
+                <div id="events-container" class="space-y-6"></div>
             </div>
+
+            <!-- TAB EXPRESS -->
             <div id="tab-express" class="tab-content space-y-8">
-                <div id="express-list" class="grid grid-cols-1 gap-4"></div>
+                <div class="section-card bg-slate-900 border-none text-white overflow-hidden relative">
+                    <div class="flex justify-between items-center mb-10 relative z-10">
+                        <div class="flex items-center gap-4">
+                            <div class="bg-yellow-500 p-2 rounded-xl text-slate-900 zap-blink">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                            </div>
+                            <div>
+                                <h2 class="text-2xl font-black uppercase tracking-tighter italic text-blue-500">Log Express Sync</h2>
+                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total del mes: <span id="express-count" class="text-white">0</span> tareas</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 gap-4 mb-10 relative z-10" id="express-list"></div>
+                    <div class="bg-slate-800 p-6 rounded-[32px] grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
+                        <input type="text" id="ex-nom" placeholder="Nomenclatura" class="bg-slate-700 border-none rounded-xl px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500 font-bold">
+                        <input type="text" id="ex-link" placeholder="URL Asana" class="bg-slate-700 border-none rounded-xl px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500">
+                        <button onclick="addExpress()" class="bg-blue-600 hover:bg-blue-700 rounded-xl font-black text-white text-xs uppercase transition-all">Registrar</button>
+                    </div>
+                </div>
             </div>
+
+            <!-- TAB RENOVACIONES -->
             <div id="tab-insumos" class="tab-content space-y-8">
-                <div id="insumos-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+                <section class="section-card">
+                    <div class="flex justify-between items-center mb-8">
+                        <div class="flex items-center gap-3">
+                            <div class="bg-emerald-100 p-2 rounded-xl text-emerald-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+                            </div>
+                            <h2 class="font-black text-2xl uppercase tracking-tighter italic">Renovaciones / Insumos</h2>
+                        </div>
+                        <span id="insumos-branch" class="text-[10px] font-black text-blue-600 uppercase">...</span>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="insumos-grid"></div>
+                    <button onclick="addInsumo()" class="mt-8 w-full border-2 border-dashed border-gray-100 py-6 rounded-3xl text-xs font-black text-gray-400 hover:border-blue-400 hover:text-blue-600 transition-all uppercase">+ Agregar Material</button>
+                </section>
             </div>
         </main>
     </div>
@@ -192,30 +236,29 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyCi3nxC2c8Sp4JAs9ylU4uxVagVXToP8HM",
-            authDomain: "accountmatrixhub.firebaseapp.com",
-            projectId: "accountmatrixhub",
-            storageBucket: "accountmatrixhub.firebasestorage.app",
-            messagingSenderId: "912278749399",
-            appId: "1:912278749399:web:f6c4f8f575b01243d2b092",
-            measurementId: "G-TLQ1WDTS38"
-        };
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const MASTER_PASSWORD = "Cremalab#2026"; 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'account-matrix-hub-prod';
+        const cloudConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const cloudAppId = typeof __app_id !== 'undefined' ? __app_id : 'account-matrix-hub-default';
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        let db = null;
+        let auth = null;
+        let isCloudMode = false;
 
-        let user = null;
+        if (cloudConfig) {
+            try {
+                const app = initializeApp(cloudConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                isCloudMode = true;
+                document.getElementById('connection-label').innerText = 'Cloud Sync Activo';
+            } catch (e) { console.warn("Modo local."); }
+        }
+
         let currentBranch = 'mty';
-        
-        let data = {
+        let data = JSON.parse(localStorage.getItem('am_local_data')) || {
             mty: { label: 'Monterrey', leads: 0, goal: 1350, budget: 0, metaMaterials: { awa: [], pro: [], ret: [] }, events: [], express: [], insumos: [], driveFolders: { awa:[], pro:[], ret:[] } },
             cdmx: { label: 'CDMX', leads: 0, goal: 800, budget: 0, metaMaterials: {awa:[], pro:[], ret:[]}, events: [], express: [], insumos: [], driveFolders: { awa:[], pro:[], ret:[] } },
             slw: { label: 'Saltillo', leads: 0, goal: 350, budget: 0, metaMaterials: {awa:[], pro:[], ret:[]}, events: [], express: [], insumos: [], driveFolders: { awa:[], pro:[], ret:[] } }
@@ -224,9 +267,9 @@
         window.checkAuth = async () => {
             const pass = document.getElementById('auth-pass').value;
             if (pass === MASTER_PASSWORD) {
-                try {
-                    await signInAnonymously(auth);
-                } catch (e) { openApp(); }
+                if (isCloudMode) {
+                    try { await signInAnonymously(auth); } catch (e) { openAppLocally(); }
+                } else { openAppLocally(); }
             } else {
                 const error = document.getElementById('auth-error');
                 error.classList.remove('hidden');
@@ -234,9 +277,7 @@
             }
         };
 
-        onAuthStateChanged(auth, (u) => { if (u) { user = u; openApp(); initRealtimeSync(); } });
-
-        function openApp() {
+        function openAppLocally() {
             document.getElementById('login-overlay').style.opacity = '0';
             setTimeout(() => {
                 document.getElementById('login-overlay').style.display = 'none';
@@ -245,23 +286,27 @@
             }, 500);
         }
 
-        function initRealtimeSync() {
-            if (!user) return;
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'master_data');
-            onSnapshot(docRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    data = docSnap.data();
-                    document.getElementById('connection-label').innerText = 'Sincronizado Cloud';
-                    renderAll();
-                }
+        if (auth) {
+            onAuthStateChanged(auth, (user) => {
+                if (user) { openAppLocally(); initCloudSync(); }
             });
+        }
+
+        async function initCloudSync() {
+            const docRef = doc(db, 'artifacts', cloudAppId, 'public', 'data', 'master_data');
+            onSnapshot(docRef, (docSnap) => {
+                if (docSnap.exists()) { data = docSnap.data(); renderAll(); }
+            }, (err) => console.log(err));
         }
 
         window.saveAll = async () => {
             updateDataFromInputs();
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'master_data');
-            await setDoc(docRef, data);
-            showToast("Cambios guardados en la nube");
+            localStorage.setItem('am_local_data', JSON.stringify(data));
+            if (isCloudMode && auth && auth.currentUser) {
+                const docRef = doc(db, 'artifacts', cloudAppId, 'public', 'data', 'master_data');
+                await setDoc(docRef, data);
+                showToast("Sincronizado en la Nube");
+            } else { showToast("Guardado Localmente"); }
         };
 
         function updateDataFromInputs() {
@@ -270,26 +315,94 @@
             b.budget = parseFloat(document.getElementById('budget-actual').value) || 0;
         }
 
+        window.switchBranch = (id) => { updateDataFromInputs(); currentBranch = id; renderAll(); };
         window.switchTab = (id) => {
             document.querySelectorAll('.tab-content, .tab-btn').forEach(el => el.classList.remove('active'));
             document.getElementById(id).classList.add('active');
             document.getElementById('btn-'+id).classList.add('active');
         };
 
-        window.switchBranch = (id) => { updateDataFromInputs(); currentBranch = id; renderAll(); };
-
         function renderAll() {
             const b = data[currentBranch];
             if(!b.driveFolders) b.driveFolders = { awa:[], pro:[], ret:[] };
+            if(!b.metaMaterials) b.metaMaterials = { awa:[], pro:[], ret:[] };
             document.getElementById('label-sucursal').innerText = b.label;
+            document.getElementById('insumos-branch').innerText = b.label;
             document.getElementById('leads-actual').value = b.leads;
             document.getElementById('budget-actual').value = b.budget;
             renderDriveVisualizer();
-            renderMetaMaterials();
+            renderMetaChecklist();
+            renderEvents();
+            renderExpress();
+            renderInsumos();
             calculateMeta();
         }
 
-        // --- LÓGICA DE VISUALIZADOR DRIVE ---
+        // --- META CHECKLIST ---
+        function renderMetaChecklist() {
+            const b = data[currentBranch];
+            const container = document.getElementById('meta-checklist-area');
+            const stages = { awa: 'Awareness', pro: 'Prospecting', ret: 'Retargeting' };
+
+            container.innerHTML = Object.entries(stages).map(([key, label]) => `
+                <div class="section-card bg-slate-50/50">
+                    <h4 class="text-[10px] font-black uppercase text-blue-500 mb-6 tracking-widest italic">${label} Tasks</h4>
+                    
+                    <div class="space-y-3 mb-6">
+                        ${(b.metaMaterials[key] || []).map((task, i) => `
+                            <div class="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100 shadow-sm transition-all ${task.d ? 'opacity-50' : ''}">
+                                <input type="checkbox" ${task.d ? 'checked' : ''} 
+                                    onchange="toggleMetaTask('${key}', ${i})"
+                                    class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+                                <input type="text" value="${task.t}" 
+                                    onchange="editMetaTask('${key}', ${i}, this.value)"
+                                    class="flex-1 bg-transparent text-xs font-bold outline-none border-none p-0 ${task.d ? 'line-through text-slate-400' : 'text-slate-700'}">
+                                <button onclick="removeMetaTask('${key}', ${i})" class="text-slate-300 hover:text-red-400 transition-colors">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <div class="flex gap-2">
+                        <input type="text" id="new-task-${key}" placeholder="Nueva tarea..." 
+                            class="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-[11px] font-bold outline-none focus:ring-2 focus:ring-blue-500">
+                        <button onclick="addMetaTask('${key}')" class="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition-all">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        window.addMetaTask = (stage) => {
+            const input = document.getElementById(`new-task-${stage}`);
+            if(!input.value.trim()) return;
+            if(!data[currentBranch].metaMaterials[stage]) data[currentBranch].metaMaterials[stage] = [];
+            data[currentBranch].metaMaterials[stage].push({ t: input.value, d: false });
+            input.value = '';
+            renderMetaChecklist();
+            saveAll();
+        };
+
+        window.toggleMetaTask = (stage, i) => {
+            data[currentBranch].metaMaterials[stage][i].d = !data[currentBranch].metaMaterials[stage][i].d;
+            renderMetaChecklist();
+            saveAll();
+        };
+
+        window.editMetaTask = (stage, i, val) => {
+            data[currentBranch].metaMaterials[stage][i].t = val;
+            saveAll();
+        };
+
+        window.removeMetaTask = (stage, i) => {
+            data[currentBranch].metaMaterials[stage].splice(i, 1);
+            renderMetaChecklist();
+            saveAll();
+        };
+
+        // --- DRIVE VISUALIZER ---
         function renderDriveVisualizer() {
             const b = data[currentBranch];
             const container = document.getElementById('drive-visualization-area');
@@ -304,66 +417,45 @@
                     
                     <div class="space-y-12">
                         ${(b.driveFolders[key] || []).length === 0 ? `
-                            <div class="empty-art-state italic text-[10px] font-bold uppercase tracking-widest">No hay carpetas vinculadas en este nivel</div>
+                            <div class="empty-art-state italic text-[10px] font-bold uppercase tracking-widest">No hay carpetas vinculadas</div>
                         ` : (b.driveFolders[key] || []).map((folder, fIdx) => `
                             <div class="folder-group">
                                 <div class="flex justify-between items-end mb-4 px-2">
                                     <div>
                                         <h5 class="text-sm font-black text-slate-800 uppercase italic">${folder.name}</h5>
                                         <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
-                                            Mostrando ${folder.count} artes • 
-                                            <a href="${folder.url}" target="_blank" class="text-blue-500 hover:underline">Abrir en Drive</a>
+                                            Viendo ${folder.count} artes • <a href="${folder.url}" target="_blank" class="text-blue-500">Abrir Drive</a>
                                         </p>
                                     </div>
-                                    <button onclick="removeDriveFolder('${key}', ${fIdx})" class="text-[9px] font-black text-red-400 uppercase tracking-widest hover:text-red-600">Eliminar</button>
+                                    <button onclick="removeDriveFolder('${key}', ${fIdx})" class="text-[9px] font-black text-red-400 uppercase tracking-widest">Eliminar</button>
                                 </div>
-                                
                                 <div class="carousel-container">
-                                    <button class="carousel-nav prev" onclick="scrollCarousel('${key}-${fIdx}', -450)">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-                                    </button>
+                                    <button class="carousel-nav prev" onclick="scrollCarousel('${key}-${fIdx}', -450)">❮</button>
                                     <div id="track-${key}-${fIdx}" class="carousel-track no-scrollbar">
                                         ${Array.from({ length: folder.count }).map((_, i) => `
                                             <div class="art-card">
                                                 <div class="art-preview-container">
-                                                    <!-- Intentamos simular el arte o mostramos un placeholder estilizado -->
-                                                    <div class="absolute inset-0 bg-slate-100 flex items-center justify-center">
-                                                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                                                    </div>
-                                                    <!-- Nota: Para mostrar la imagen real de Drive, el usuario debe usar el enlace directo al archivo, 
-                                                         aquí generamos un identificador visual único para cada arte -->
-                                                    <div class="absolute bottom-4 left-4 right-4 bg-white/90 backdrop-blur p-3 rounded-xl border border-white/20 shadow-xl">
-                                                        <p class="text-[10px] font-black text-slate-800 uppercase italic">Creative_Ref_${i+1}</p>
-                                                        <p class="text-[8px] font-bold text-slate-400 uppercase">Version 1.0 • Ready</p>
+                                                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                                                    <div class="absolute bottom-4 left-4 right-4 bg-white/90 backdrop-blur p-3 rounded-xl shadow-xl">
+                                                        <p class="text-[10px] font-black text-slate-800 uppercase italic">Creativo_${i+1}</p>
+                                                        <p class="text-[8px] font-bold text-slate-400 uppercase">Version Final</p>
                                                     </div>
                                                 </div>
                                             </div>
                                         `).join('')}
                                     </div>
-                                    <button class="carousel-nav next" onclick="scrollCarousel('${key}-${fIdx}', 450)">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-                                    </button>
+                                    <button class="carousel-nav next" onclick="scrollCarousel('${key}-${fIdx}', 450)">❯</button>
                                 </div>
                             </div>
                         `).join('')}
 
-                        <!-- Formulario para agregar carpeta -->
                         <div class="bg-white border-2 border-dashed border-slate-200 rounded-[2rem] p-8">
                              <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                                <div>
-                                    <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Nombre de Carpeta</label>
-                                    <input type="text" id="new-folder-name-${key}" placeholder="Ej: Abril 2026 - Reels" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500">
-                                </div>
-                                <div>
-                                    <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Número de Artes</label>
-                                    <input type="number" id="new-folder-count-${key}" value="6" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500">
-                                </div>
-                                <div>
-                                    <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Enlace de Drive</label>
-                                    <input type="text" id="new-folder-url-${key}" placeholder="https://drive.google.com/..." class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500">
-                                </div>
+                                <input type="text" id="new-folder-name-${key}" placeholder="Nombre Carpeta" class="bg-slate-50 border-none rounded-xl px-4 py-3 text-xs font-bold outline-none">
+                                <input type="number" id="new-folder-count-${key}" value="6" class="bg-slate-50 border-none rounded-xl px-4 py-3 text-xs font-bold outline-none">
+                                <input type="text" id="new-folder-url-${key}" placeholder="URL Google Drive" class="bg-slate-50 border-none rounded-xl px-4 py-3 text-xs font-bold outline-none">
                              </div>
-                             <button onclick="addDriveFolder('${key}')" class="w-full bg-slate-900 text-white font-black py-4 rounded-xl text-[10px] uppercase tracking-[0.2em] hover:bg-black transition-all">Vincular Nueva Carpeta de Drive</button>
+                             <button onclick="addDriveFolder('${key}')" class="w-full bg-slate-900 text-white font-black py-4 rounded-xl text-[10px] uppercase tracking-widest hover:bg-black transition-all">Vincular Carpeta de Drive</button>
                         </div>
                     </div>
                 </div>
@@ -374,15 +466,11 @@
             const name = document.getElementById(`new-folder-name-${stage}`).value;
             const count = parseInt(document.getElementById(`new-folder-count-${stage}`).value);
             const url = document.getElementById(`new-folder-url-${stage}`).value;
-            
             if(name && count > 0 && url) {
                 if(!data[currentBranch].driveFolders[stage]) data[currentBranch].driveFolders[stage] = [];
                 data[currentBranch].driveFolders[stage].push({ name, count, url });
                 renderDriveVisualizer();
-                showToast("Carpeta de artes vinculada");
                 saveAll();
-            } else {
-                showToast("Faltan datos de la carpeta");
             }
         };
 
@@ -397,27 +485,155 @@
             track.scrollBy({ left: amount, behavior: 'smooth' });
         };
 
-        // --- RENDERIZADO DE MATERIALES ---
-        function renderMetaMaterials() {
-            const b = data[currentBranch];
-            document.getElementById('meta-materials').innerHTML = ['awa', 'pro', 'ret'].map(p => `
+        // --- EVENTS ---
+        window.addEvent = () => {
+            data[currentBranch].events.push({ name: 'NUEVO EVENTO', digital: [], logistics: [] });
+            renderEvents();
+            saveAll();
+        };
+
+        window.removeEvent = (i) => {
+            data[currentBranch].events.splice(i, 1);
+            renderEvents();
+            saveAll();
+        };
+
+        window.addEvTask = (ei, type) => {
+            data[currentBranch].events[ei][type].push({ t: 'Tarea...', d: false, c: 0 });
+            renderEvents();
+            saveAll();
+        };
+
+        window.toggleEvTask = (ei, type, ti) => {
+            data[currentBranch].events[ei][type][ti].d = !data[currentBranch].events[ei][type][ti].d;
+            renderEvents();
+            saveAll();
+        };
+
+        window.editEvTask = (ei, type, ti, val) => {
+            data[currentBranch].events[ei][type][ti].t = val;
+            saveAll();
+        };
+
+        window.editEvTaskCost = (ei, ti, val) => {
+            data[currentBranch].events[ei].logistics[ti].c = parseFloat(val) || 0;
+            saveAll();
+        };
+
+        function renderEvents() {
+            document.getElementById('events-container').innerHTML = (data[currentBranch].events || []).map((ev, i) => `
                 <div class="section-card">
-                    <h4 class="text-[10px] font-black uppercase text-gray-400 mb-4 tracking-widest">${p} materials</h4>
-                    <div class="space-y-2">
-                        ${(b.metaMaterials[p] || []).map((m, i) => `
-                            <div class="flex items-center gap-2 p-2 bg-slate-50 rounded-lg text-[11px] font-bold">
-                                <input type="checkbox" ${m.d ? 'checked' : ''} onchange="toggleMetaMat('${p}',${i})" class="w-4 h-4 accent-blue-600">
-                                <input type="text" value="${m.t}" onchange="editMetaMat('${p}',${i},this.value)" class="bg-transparent flex-1 outline-none ${m.d ? 'line-through text-gray-300' : ''}">
-                            </div>`).join('')}
+                    <input type="text" value="${ev.name}" onchange="data['${currentBranch}'].events[${i}].name=this.value; saveAll();" class="text-xl font-black uppercase outline-none block w-full mb-4 italic">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-2">
+                            <h5 class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Checklist Digital</h5>
+                            ${(ev.digital || []).map((d, di) => `
+                                <div class="flex items-center gap-2 text-xs font-bold">
+                                    <input type="checkbox" ${d.d ? 'checked' : ''} onchange="toggleEvTask(${i},'digital',${di})">
+                                    <input type="text" value="${d.t}" onchange="editEvTask(${i},'digital',${di},this.value)" class="bg-transparent outline-none flex-1 ${d.d ? 'line-through text-slate-300' : ''}">
+                                </div>`).join('')}
+                            <button onclick="addEvTask(${i},'digital')" class="text-[9px] font-bold text-blue-500 uppercase">+ Add Digital</button>
+                        </div>
+                        <div class="space-y-2">
+                            <h5 class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Presupuesto / Logística</h5>
+                            ${(ev.logistics || []).map((l, li) => `
+                                <div class="flex items-center gap-2 text-xs font-bold">
+                                    <input type="checkbox" ${l.d ? 'checked' : ''} onchange="toggleEvTask(${i},'logistics',${li})">
+                                    <input type="text" value="${l.t}" onchange="editEvTask(${i},'logistics',${li},this.value)" class="bg-transparent outline-none flex-1 ${l.d ? 'line-through text-slate-300' : ''}">
+                                    <span class="text-green-600 italic">$</span>
+                                    <input type="number" value="${l.c}" onchange="editEvTaskCost(${i},${li},this.value)" class="w-16 bg-transparent outline-none text-right">
+                                </div>`).join('')}
+                            <button onclick="addEvTask(${i},'logistics')" class="text-[9px] font-bold text-blue-500 uppercase">+ Add Log</button>
+                        </div>
                     </div>
-                    <button onclick="addMetaMat('${p}')" class="mt-4 text-[9px] font-black text-blue-500 uppercase tracking-widest">+ Añadir</button>
+                    <button onclick="removeEvent(${i})" class="mt-6 text-red-400 text-[9px] font-bold uppercase tracking-widest">Eliminar Evento</button>
                 </div>`).join('');
         }
 
-        window.addMetaMat = (p) => { data[currentBranch].metaMaterials[p].push({t:'Nuevo Material', d:false}); renderMetaMaterials(); saveAll(); };
-        window.toggleMetaMat = (p,i) => { data[currentBranch].metaMaterials[p][i].d = !data[currentBranch].metaMaterials[p][i].d; renderMetaMaterials(); saveAll(); };
-        window.editMetaMat = (p,i,v) => { data[currentBranch].metaMaterials[p][i].t = v; saveAll(); };
+        // --- EXPRESS ---
+        window.addExpress = () => {
+            const nom = document.getElementById('ex-nom').value;
+            const link = document.getElementById('ex-link').value;
+            if(nom) {
+                data[currentBranch].express.push({ name: nom, link: link });
+                document.getElementById('ex-nom').value = '';
+                document.getElementById('ex-link').value = '';
+                renderExpress();
+                saveAll();
+            }
+        };
 
+        window.removeExpress = (i) => {
+            data[currentBranch].express.splice(i, 1);
+            renderExpress();
+            saveAll();
+        };
+
+        function renderExpress() {
+            document.getElementById('express-count').innerText = (data[currentBranch].express || []).length;
+            document.getElementById('express-list').innerHTML = (data[currentBranch].express || []).map((ex, i) => `
+                <div class="bg-slate-800 p-4 rounded-xl flex justify-between items-center">
+                    <span class="text-sm font-bold text-blue-100 uppercase italic">${ex.name}</span>
+                    <div class="flex items-center gap-4">
+                        <a href="${ex.link}" target="_blank" class="text-blue-400 text-[10px] font-bold uppercase">Ver Asana</a>
+                        <button onclick="removeExpress(${i})" class="text-slate-500 hover:text-red-400 transition-colors">✕</button>
+                    </div>
+                </div>`).join('');
+        }
+
+        // --- RENOVACIONES (INSUMOS) ---
+        window.addInsumo = () => {
+            data[currentBranch].insumos.push({ t: 'NUEVO MATERIAL', status: 'PENDIENTE', entry: '', renew: '' });
+            renderInsumos();
+            saveAll();
+        };
+
+        window.toggleInsumoStatus = (i) => {
+            data[currentBranch].insumos[i].status = data[currentBranch].insumos[i].status === 'OK' ? 'PENDIENTE' : 'OK';
+            renderInsumos();
+            saveAll();
+        };
+
+        window.removeInsumo = (i) => {
+            data[currentBranch].insumos.splice(i, 1);
+            renderInsumos();
+            saveAll();
+        };
+
+        window.updateInsumoDate = (i, field, val) => {
+            data[currentBranch].insumos[i][field] = val;
+            saveAll();
+        };
+
+        function renderInsumos() {
+            document.getElementById('insumos-grid').innerHTML = (data[currentBranch].insumos || []).map((ins, i) => `
+                <div class="p-6 rounded-3xl border border-gray-100 bg-white shadow-sm hover:border-blue-200 transition-all group">
+                    <input type="text" value="${ins.t}" onchange="data['${currentBranch}'].insumos[${i}].t=this.value; saveAll();" 
+                        class="font-black text-sm block w-full mb-6 uppercase outline-none text-slate-800">
+                    
+                    <div class="space-y-3 mb-6">
+                        <div class="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 p-3 rounded-xl">
+                            <span class="flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> Entrada</span>
+                            <input type="date" value="${ins.entry || ''}" onchange="updateInsumoDate(${i}, 'entry', this.value)" 
+                                class="bg-transparent border-none outline-none text-blue-600">
+                        </div>
+                        <div class="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-400 bg-blue-50/50 p-3 rounded-xl border border-blue-100">
+                            <span class="flex items-center gap-2 text-blue-600"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/></svg> Renovación</span>
+                            <input type="date" value="${ins.renew || ''}" onchange="updateInsumoDate(${i}, 'renew', this.value)" 
+                                class="bg-transparent border-none outline-none text-blue-700">
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-center">
+                        <span onclick="toggleInsumoStatus(${i})" class="status-badge cursor-pointer ${ins.status === 'OK' ? 'status-done' : 'status-pending'}">${ins.status}</span>
+                        <button onclick="removeInsumo(${i})" class="text-gray-300 hover:text-red-500 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                        </button>
+                    </div>
+                </div>`).join('');
+        }
+
+        // --- CALC ---
         window.calculateMeta = () => {
             const b = data[currentBranch];
             const current = parseInt(document.getElementById('leads-actual').value) || 0;
@@ -425,17 +641,18 @@
             document.getElementById('leads-count').innerText = current.toLocaleString();
             document.getElementById('leads-goal').innerText = `/ ${b.goal.toLocaleString()}`;
             document.getElementById('leads-bar').style.width = `${Math.min((current/b.goal)*100, 100)}%`;
-            document.getElementById('cpl-display').innerText = `$${(current > 0 ? budget/current : 0).toFixed(2)}`;
+            
+            const cpl = current > 0 ? (budget / current).toFixed(2) : "0.00";
+            document.getElementById('cpl-display').innerText = `$${cpl}`;
         };
 
-        function showToast(m) {
+        function showToast(msg) {
             const t = document.getElementById('toast');
-            t.innerText = m; t.classList.replace('opacity-0', 'opacity-100');
-            setTimeout(() => t.classList.replace('opacity-100', 'opacity-0'), 2000);
+            t.innerText = msg;
+            t.style.opacity = '1';
+            t.style.bottom = '40px';
+            setTimeout(() => { t.style.opacity = '0'; t.style.bottom = '20px'; }, 3000);
         }
-
-        window.logout = () => { if(auth) auth.signOut(); location.reload(); };
-        document.getElementById('auth-pass').addEventListener('keypress', (e) => { if(e.key==='Enter') checkAuth(); });
     </script>
 </body>
 </html>
