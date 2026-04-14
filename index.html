@@ -37,7 +37,6 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* Estilos de Carrusel de Artes */
         .art-card {
             min-width: 180px; height: 320px; background: #f8fafc; border-radius: 1.2rem;
             padding: 0.5rem; border: 1px solid #f1f5f9; flex-shrink: 0;
@@ -81,7 +80,7 @@
                     </div>
                     <div>
                         <h1 class="text-xl font-black tracking-tighter">AM <span class="text-blue-600">MANAGEMENT</span></h1>
-                        <p id="connection-label" class="text-[9px] text-gray-400 font-black uppercase tracking-widest">Sincronización Local</p>
+                        <p id="connection-label" class="text-[9px] text-gray-400 font-black uppercase tracking-widest">Iniciando Sincronización...</p>
                     </div>
                 </div>
 
@@ -109,7 +108,6 @@
         </nav>
 
         <main class="max-w-7xl mx-auto py-8 px-6">
-            <!-- TAB META: Todo en un mismo scroll -->
             <div id="tab-meta" class="tab-content active space-y-12">
                 <section class="section-card border-l-8 border-l-blue-600">
                     <div class="flex justify-between items-center mb-6">
@@ -141,10 +139,8 @@
                     </div>
                 </section>
 
-                <!-- Checklists -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8" id="meta-materials"></div>
 
-                <!-- SECCIÓN VISUALIZADOR DE CARPETAS DRIVE (AWA, PRO, RET) -->
                 <div class="space-y-12">
                     <div class="flex items-center gap-4">
                         <div class="h-[2px] flex-1 bg-slate-100"></div>
@@ -196,42 +192,54 @@
     <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-8 py-4 rounded-2xl shadow-2xl opacity-0 pointer-events-none transition-all font-black text-[10px] uppercase tracking-widest z-[100]"></div>
 
     <script type="module">
+        // Firebase Core & Firestore
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Config de usuario
+        const firebaseConfig = {
+            apiKey: "AIzaSyCi3nxC2c8Sp4JAs9ylU4uxVagVXToP8HM",
+            authDomain: "accountmatrixhub.firebaseapp.com",
+            projectId: "accountmatrixhub",
+            storageBucket: "accountmatrixhub.firebasestorage.app",
+            messagingSenderId: "912278749399",
+            appId: "1:912278749399:web:f6c4f8f575b01243d2b092",
+            measurementId: "G-TLQ1WDTS38"
+        };
 
         const MASTER_PASSWORD = "Cremalab#2026"; 
-        const cloudConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const cloudAppId = typeof __app_id !== 'undefined' ? __app_id : null;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'account-matrix-hub-prod';
 
-        let db = null;
-        let auth = null;
-        let isCloudMode = false;
+        // Init Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
 
-        if (cloudConfig) {
-            try {
-                const app = initializeApp(cloudConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
-                isCloudMode = true;
-                document.getElementById('connection-label').innerText = 'Cloud Sync Activo';
-            } catch (e) { console.warn("Modo local."); }
-        }
-
+        let user = null;
         let currentBranch = 'mty';
-        // Estructura expandida para soportar carpetas
+        
+        // Estructura de datos por defecto
         let data = JSON.parse(localStorage.getItem('am_local_data')) || {
             mty: { label: 'Monterrey', leads: 0, goal: 1350, budget: 0, metaMaterials: { awa: [], pro: [], ret: [] }, events: [], express: [], insumos: [], driveFolders: { awa:[], pro:[], ret:[] } },
             cdmx: { label: 'CDMX', leads: 0, goal: 800, budget: 0, metaMaterials: {awa:[], pro:[], ret:[]}, events: [], express: [], insumos: [], driveFolders: { awa:[], pro:[], ret:[] } },
             slw: { label: 'Saltillo', leads: 0, goal: 350, budget: 0, metaMaterials: {awa:[], pro:[], ret:[]}, events: [], express: [], insumos: [], driveFolders: { awa:[], pro:[], ret:[] } }
         };
 
+        // Auth Logic
         window.checkAuth = async () => {
             const pass = document.getElementById('auth-pass').value;
             if (pass === MASTER_PASSWORD) {
-                if (isCloudMode) {
-                    try { await signInAnonymously(auth); } catch (e) { openAppLocally(); }
-                } else { openAppLocally(); }
+                try {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                } catch (e) {
+                    console.error("Auth Error", e);
+                    openApp(); // Fallback
+                }
             } else {
                 const error = document.getElementById('auth-error');
                 error.classList.remove('hidden');
@@ -239,7 +247,15 @@
             }
         };
 
-        function openAppLocally() {
+        onAuthStateChanged(auth, (u) => {
+            if (u) {
+                user = u;
+                openApp();
+                initRealtimeSync();
+            }
+        });
+
+        function openApp() {
             document.getElementById('login-overlay').style.opacity = '0';
             setTimeout(() => {
                 document.getElementById('login-overlay').style.display = 'none';
@@ -248,33 +264,52 @@
             }, 500);
         }
 
-        if (auth) {
-            onAuthStateChanged(auth, (user) => {
-                if (user) { openAppLocally(); initCloudSync(); }
-            });
-        }
-
-        async function initCloudSync() {
-            const docRef = doc(db, 'artifacts', cloudAppId, 'public', 'data', 'master_data');
+        function initRealtimeSync() {
+            if (!user) return;
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'master_data');
+            
             onSnapshot(docRef, (docSnap) => {
-                if (docSnap.exists()) { data = docSnap.data(); renderAll(); }
+                if (docSnap.exists()) {
+                    data = docSnap.data();
+                    document.getElementById('connection-label').innerText = 'Cloud Sync Activo';
+                    renderAll();
+                }
+            }, (err) => {
+                console.warn("Firestore error:", err);
+                document.getElementById('connection-label').innerText = 'Modo Local (Error Sync)';
             });
         }
 
         window.saveAll = async () => {
             updateDataFromInputs();
             localStorage.setItem('am_local_data', JSON.stringify(data));
-            if (isCloudMode && auth.currentUser) {
-                const docRef = doc(db, 'artifacts', cloudAppId, 'public', 'data', 'master_data');
-                await setDoc(docRef, data);
-                showToast("Sincronizado");
-            } else { showToast("Guardado Local"); }
+            
+            if (user) {
+                const saveBtn = document.getElementById('save-btn');
+                const originalText = saveBtn.innerHTML;
+                saveBtn.innerHTML = '<div class="loading-spinner"></div>';
+                
+                try {
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'master_data');
+                    await setDoc(docRef, data);
+                    showToast("Sincronizado en Firebase");
+                } catch (e) {
+                    console.error(e);
+                    showToast("Error de guardado en nube");
+                } finally {
+                    saveBtn.innerHTML = originalText;
+                }
+            } else {
+                showToast("Guardado localmente");
+            }
         };
 
         function updateDataFromInputs() {
             const b = data[currentBranch];
-            b.leads = parseInt(document.getElementById('leads-actual').value) || 0;
-            b.budget = parseFloat(document.getElementById('budget-actual').value) || 0;
+            const leadsVal = document.getElementById('leads-actual');
+            const budgetVal = document.getElementById('budget-actual');
+            if(leadsVal) b.leads = parseInt(leadsVal.value) || 0;
+            if(budgetVal) b.budget = parseFloat(budgetVal.value) || 0;
         }
 
         window.logout = () => { if(auth) auth.signOut(); location.reload(); };
@@ -283,16 +318,21 @@
             document.getElementById(id).classList.add('active');
             document.getElementById('btn-'+id).classList.add('active');
         };
-        window.switchBranch = (id) => { updateDataFromInputs(); currentBranch = id; renderAll(); };
+        window.switchBranch = (id) => { 
+            updateDataFromInputs(); 
+            currentBranch = id; 
+            renderAll(); 
+        };
 
         function renderAll() {
             const b = data[currentBranch];
-            if(!b.driveFolders) b.driveFolders = { awa:[], pro:[], ret:[] }; // Migración segura
+            if(!b.driveFolders) b.driveFolders = { awa:[], pro:[], ret:[] };
 
             document.getElementById('label-sucursal').innerText = b.label;
             document.getElementById('insumos-branch').innerText = b.label;
             document.getElementById('leads-actual').value = b.leads;
             document.getElementById('budget-actual').value = b.budget;
+            
             renderMetaMaterials();
             renderEvents();
             renderExpress();
@@ -301,7 +341,6 @@
             calculateMeta();
         }
 
-        // --- DRIVE VISUALIZER LOGIC ---
         function renderDriveVisualizer() {
             const b = data[currentBranch];
             const container = document.getElementById('drive-visualization-area');
@@ -313,7 +352,6 @@
                         <span class="bg-blue-600 text-white text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest">${stage} Stage</span>
                         <h4 class="text-2xl font-black text-slate-800 tracking-tighter uppercase italic">Carpetas de Contenido</h4>
                     </div>
-                    
                     <div class="grid grid-cols-1 gap-12">
                         ${(b.driveFolders[stage] || []).map((folder, fIdx) => `
                             <div class="folder-group">
@@ -339,13 +377,11 @@
                                 </div>
                             </div>
                         `).join('')}
-                        
-                        <!-- Panel de Añadir -->
                         <div class="p-8 border-2 border-dashed border-slate-100 rounded-[2.5rem] bg-slate-50/30 text-center">
                             <div class="max-w-xs mx-auto space-y-3">
-                                <input type="text" id="new-folder-name-${stage}" placeholder="Nombre: Ej. Reels Virales" class="w-full bg-white rounded-xl px-4 py-3 text-xs font-bold outline-none border border-slate-100 focus:border-blue-400 transition-all">
-                                <input type="number" id="new-folder-count-${stage}" placeholder="Cantidad de Artes" class="w-full bg-white rounded-xl px-4 py-3 text-xs font-bold outline-none border border-slate-100 focus:border-blue-400 transition-all">
-                                <button onclick="addDriveFolder('${stage}')" class="w-full bg-slate-900 text-white rounded-xl py-3 text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all">+ Vincular Carpeta</button>
+                                <input type="text" id="new-folder-name-${stage}" placeholder="Nombre de Carpeta" class="w-full bg-white rounded-xl px-4 py-3 text-xs font-bold outline-none border border-slate-100">
+                                <input type="number" id="new-folder-count-${stage}" placeholder="Cantidad de Artes" class="w-full bg-white rounded-xl px-4 py-3 text-xs font-bold outline-none border border-slate-100">
+                                <button onclick="addDriveFolder('${stage}')" class="w-full bg-slate-900 text-white rounded-xl py-3 text-[10px] font-black uppercase">+ Vincular</button>
                             </div>
                         </div>
                     </div>
@@ -357,6 +393,7 @@
             const name = document.getElementById(`new-folder-name-${stage}`).value;
             const count = parseInt(document.getElementById(`new-folder-count-${stage}`).value);
             if(name && count > 0) {
+                if(!data[currentBranch].driveFolders[stage]) data[currentBranch].driveFolders[stage] = [];
                 data[currentBranch].driveFolders[stage].push({ name, count });
                 renderDriveVisualizer();
             }
@@ -367,7 +404,6 @@
             renderDriveVisualizer();
         };
 
-        // --- EXISTING RENDERERS ---
         function renderMetaMaterials() {
             const b = data[currentBranch];
             document.getElementById('meta-materials').innerHTML = ['awa', 'pro', 'ret'].map(p => `
@@ -390,12 +426,12 @@
                     <input type="text" value="${ev.name}" onchange="data['${currentBranch}'].events[${i}].name=this.value" class="text-xl font-black uppercase outline-none block w-full mb-4">
                     <div class="grid grid-cols-2 gap-4">
                         <div class="space-y-2">
-                            ${(ev.digital || []).map((d, di) => `<div class="flex items-center gap-2 text-xs"><input type="checkbox" ${d.d ? 'checked' : ''} onchange="toggleEvTask(${i},'digital',${di})"> ${d.t}</div>`).join('')}
-                            <button onclick="addEvTask(${i},'digital')" class="text-[9px] font-bold text-blue-500 uppercase">+ Add</button>
+                            ${(ev.digital || []).map((d, di) => `<div class="flex items-center gap-2 text-xs font-bold"><input type="checkbox" ${d.d ? 'checked' : ''} onchange="toggleEvTask(${i},'digital',${di})"> ${d.t}</div>`).join('')}
+                            <button onclick="addEvTask(${i},'digital')" class="text-[9px] font-bold text-blue-500 uppercase">+ Add Digital</button>
                         </div>
                         <div class="space-y-2">
-                            ${(ev.logistics || []).map((l, li) => `<div class="flex items-center gap-2 text-xs"><input type="checkbox" ${l.d ? 'checked' : ''} onchange="toggleEvTask(${i},'logistics',${li})"> ${l.t}</div>`).join('')}
-                            <button onclick="addEvTask(${i},'logistics')" class="text-[9px] font-bold text-blue-500 uppercase">+ Add</button>
+                            ${(ev.logistics || []).map((l, li) => `<div class="flex items-center gap-2 text-xs font-bold"><input type="checkbox" ${l.d ? 'checked' : ''} onchange="toggleEvTask(${i},'logistics',${li})"> ${l.t}</div>`).join('')}
+                            <button onclick="addEvTask(${i},'logistics')" class="text-[9px] font-bold text-blue-500 uppercase">+ Add Logistic</button>
                         </div>
                     </div>
                 </div>`).join('');
