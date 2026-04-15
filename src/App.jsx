@@ -57,12 +57,12 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [loginError, setLoginError] = useState('');
 
-  // Estados de datos por sucursal
+  // Estados de datos iniciales con estructura por sucursal
   const [metaData, setMetaData] = useState({
     sucursales: {
-      mty: { leads: 0, metaLeads: 100, budget: 5000, spent: 2000 },
-      slw: { leads: 0, metaLeads: 100, budget: 5000, spent: 2000 },
-      cdmx: { leads: 0, metaLeads: 100, budget: 5000, spent: 2000 }
+      mty: { leads: 0, metaLeads: 100, budget: 5000, spent: 0 },
+      slw: { leads: 0, metaLeads: 100, budget: 5000, spent: 0 },
+      cdmx: { leads: 0, metaLeads: 100, budget: 5000, spent: 0 }
     },
     checklists: { awareness: [], prospeccion: [], retargeting: [] },
     drive: { awareness: '', prospeccion: '', retargeting: '' }
@@ -94,13 +94,26 @@ export default function App() {
     return onSnapshot(docRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        if (data.metaData) setMetaData(data.metaData);
+        // Mezclamos con el estado inicial para evitar errores de campos faltantes
+        if (data.metaData) {
+            setMetaData(prev => ({
+                ...prev,
+                ...data.metaData,
+                sucursales: {
+                    ...prev.sucursales,
+                    ...(data.metaData.sucursales || {})
+                }
+            }));
+        }
         if (data.eventos) setEventos(data.eventos);
         if (data.insumos) setInsumos(data.insumos);
         if (data.express) setExpress(data.express);
       }
       setLoading(false);
-    }, () => setLoading(false));
+    }, (error) => {
+        console.error("Error fetching data:", error);
+        setLoading(false);
+    });
   }, [user, role]);
 
   const saveData = async (updates) => {
@@ -118,10 +131,14 @@ export default function App() {
       localStorage.setItem('app_role', showPassModal);
       setLoginError('');
       setShowPassModal(null);
+      setPasswordInput('');
     } else {
       setLoginError('Contraseña incorrecta');
     }
   };
+
+  // Obtener estadísticas de la sucursal actual con fallback de seguridad
+  const currentStats = metaData?.sucursales?.[activeSucursal] || { leads: 0, metaLeads: 1, budget: 0, spent: 0 };
 
   if (!role) return (
     <div className="h-screen flex items-center justify-center bg-[#f8fafc] p-6">
@@ -153,7 +170,7 @@ export default function App() {
               {loginError && <p className="text-rose-500 text-[10px] font-black uppercase text-center mt-2 tracking-widest">{loginError}</p>}
             </div>
             <div className="flex gap-3">
-               <button onClick={() => { setShowPassModal(null); setLoginError(''); }} className="flex-1 p-5 bg-slate-100 text-slate-500 rounded-[2rem] font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all">Cancelar</button>
+               <button onClick={() => { setShowPassModal(null); setLoginError(''); setPasswordInput(''); }} className="flex-1 p-5 bg-slate-100 text-slate-500 rounded-[2rem] font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all">Cancelar</button>
                <button onClick={handleLogin} className="flex-2 px-10 bg-blue-600 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all">Entrar</button>
             </div>
           </div>
@@ -175,8 +192,6 @@ export default function App() {
       </div>
     </div>
   );
-
-  const currentStats = metaData.sucursales[activeSucursal];
 
   return (
     <div className="flex h-screen bg-[#f8fafc] text-slate-800 overflow-hidden font-sans">
@@ -215,7 +230,7 @@ export default function App() {
         </div>
       </aside>
 
-      {/* Main */}
+      {/* Main Content */}
       <main className="flex-1 overflow-y-auto bg-[#f8fafc]">
         <div className="max-w-6xl mx-auto p-12 space-y-12">
           
@@ -239,14 +254,14 @@ export default function App() {
                 )}
               </div>
 
-              {/* Pestañas Sucursales */}
+              {/* Selector de Sucursales */}
               <div className="flex gap-2 p-1.5 bg-slate-100 w-fit rounded-[2rem] border border-slate-200">
                 <SucursalTab label="Monterrey" active={activeSucursal === 'mty'} onClick={() => setActiveSucursal('mty')} />
                 <SucursalTab label="Saltillo" active={activeSucursal === 'slw'} onClick={() => setActiveSucursal('slw')} />
                 <SucursalTab label="CDMX" active={activeSucursal === 'cdmx'} onClick={() => setActiveSucursal('cdmx')} />
               </div>
 
-              {/* Grid de Métricas */}
+              {/* Métricas Dinámicas por Sucursal */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <MetricCard 
                   label="Leads Reales" 
@@ -261,7 +276,7 @@ export default function App() {
                 <MetricCard 
                   label="Meta Mensual" 
                   value={currentStats.metaLeads} 
-                  subtext={`${Math.round((currentStats.leads/currentStats.metaLeads)*100)}% de avance`}
+                  subtext={`${Math.round((currentStats.leads / (currentStats.metaLeads || 1)) * 100)}% de avance`}
                   icon={<Zap size={24} className="text-amber-500"/>}
                   editing={isEditingMetrics}
                   onChange={(v) => {
@@ -271,7 +286,7 @@ export default function App() {
                 />
                 <MetricCard 
                   label="Presupuesto" 
-                  value={`$${currentStats.budget.toLocaleString()}`} 
+                  value={`$${(currentStats.budget || 0).toLocaleString()}`} 
                   icon={<DollarSign size={24} className="text-emerald-500"/>}
                   editing={isEditingMetrics}
                   isCurrency
@@ -282,8 +297,8 @@ export default function App() {
                 />
                 <MetricCard 
                   label="Gasto Real" 
-                  value={`$${currentStats.spent.toLocaleString()}`} 
-                  subtext={`${Math.round((currentStats.spent/currentStats.budget)*100)}% de uso`}
+                  value={`$${(currentStats.spent || 0).toLocaleString()}`} 
+                  subtext={`${Math.round((currentStats.spent / (currentStats.budget || 1)) * 100)}% de uso`}
                   icon={<LayoutDashboard size={24} className="text-purple-500"/>}
                   editing={isEditingMetrics}
                   isCurrency
@@ -294,7 +309,7 @@ export default function App() {
                 />
               </div>
 
-              {/* Checklists y Drive se mantienen globales para no complicar el scroll */}
+              {/* El resto se mantiene global o similar */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-6">
                 <ChecklistCol title="Awareness" items={metaData.checklists.awareness} color="border-l-4 border-blue-500" role={role} onUpdate={(items) => {
                   const newMeta = { ...metaData, checklists: { ...metaData.checklists, awareness: items }};
@@ -330,10 +345,8 @@ export default function App() {
             </div>
           )}
 
-          {/* Secciones de Eventos, Insumos y Express se mantienen iguales... */}
           {activeTab === 'eventos' && (
             <div className="animate-in slide-in-from-right duration-500">
-               {/* Lógica de Eventos */}
                <h2 className="text-4xl font-black text-slate-800 mb-8">Gestión de Eventos</h2>
                <div className="grid grid-cols-1 gap-8">
                 {eventos.map(ev => <EventCard key={ev.id} ev={ev} role={role} onUpdate={(u) => {
@@ -473,10 +486,10 @@ function ChecklistCol({ title, items, color, onUpdate, role }) {
     <div className={`bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm ${color}`}>
       <div className="flex justify-between items-center mb-8">
         <h4 className="font-black text-xs text-slate-800 uppercase tracking-[0.2em]">{title}</h4>
-        <span className="bg-slate-50 text-[10px] font-black text-slate-400 px-3 py-1.5 rounded-full border border-slate-100">{items.filter(i => i.done).length}/{items.length}</span>
+        <span className="bg-slate-50 text-[10px] font-black text-slate-400 px-3 py-1.5 rounded-full border border-slate-100">{items?.length ? items.filter(i => i.done).length : 0}/{items?.length || 0}</span>
       </div>
       <div className="space-y-5">
-        {items.map(i => (
+        {items?.map(i => (
           <div key={i.id} className="flex items-center gap-4 group">
             <button onClick={() => onUpdate(items.map(it => it.id === i.id ? {...it, done: !it.done} : it))}>
               {i.done ? <CheckCircle2 size={22} className="text-blue-500"/> : <Circle size={22} className="text-slate-100 group-hover:text-blue-200 transition-colors"/>}
@@ -487,7 +500,7 @@ function ChecklistCol({ title, items, color, onUpdate, role }) {
         {role === 'admin' && (
           <div className="flex gap-2 pt-6 mt-4 border-t border-slate-50">
             <input value={input} onChange={e => setInput(e.target.value)} placeholder="Nueva tarea..." className="flex-1 bg-slate-50 p-4 rounded-2xl text-[10px] font-bold border border-slate-100 outline-none focus:bg-white" onKeyDown={e => {
-              if(e.key === 'Enter' && input) { onUpdate([...items, { id: Date.now(), text: input, done: false }]); setInput(''); }
+              if(e.key === 'Enter' && input) { onUpdate([...(items || []), { id: Date.now(), text: input, done: false }]); setInput(''); }
             }} />
           </div>
         )}
@@ -507,6 +520,8 @@ function DriveCarousel({ title, folderId, onLink, isAdmin }) {
       fetch(`https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents&fields=files(id,name,thumbnailLink,webContentLink)&key=${DRIVE_API_KEY}`)
         .then(res => res.json())
         .then(data => { if(data.files) setFiles(data.files); setLoading(false); }).catch(() => setLoading(false));
+    } else {
+        setFiles([]);
     }
   }, [folderId]);
 
@@ -557,7 +572,7 @@ function EventCard({ ev, onUpdate, onDelete, role }) {
          <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100/50 space-y-6">
             <h5 className="font-black text-xs uppercase tracking-widest flex items-center gap-3"><CheckCircle2 size={18} className="text-blue-500"/> Logística</h5>
             <div className="space-y-4">
-               {ev.tareas.map((t, i) => (
+               {ev.tareas?.map((t, i) => (
                  <div key={i} className="flex items-center gap-4">
                    <button onClick={() => onUpdate({...ev, tareas: ev.tareas.map((tt, idx) => idx === i ? {...tt, done: !tt.done} : tt)})}>
                      {t.done ? <CheckCircle2 size={22} className="text-blue-500"/> : <Circle size={22} className="text-slate-200"/>}
@@ -570,7 +585,7 @@ function EventCard({ ev, onUpdate, onDelete, role }) {
          <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100/50 space-y-6">
             <h5 className="font-black text-xs uppercase tracking-widest flex items-center gap-3"><DollarSign size={18} className="text-emerald-500"/> Gastos</h5>
             <div className="space-y-4">
-               {ev.gastos.map((g, i) => (
+               {ev.gastos?.map((g, i) => (
                  <div key={i} className="bg-white p-5 rounded-3xl flex justify-between items-center border border-slate-100 shadow-sm">
                    <span className="text-[10px] font-black text-slate-400 uppercase">{g.text}</span>
                    <span className="text-sm font-black text-slate-800">${g.costo.toLocaleString()}</span>
@@ -578,7 +593,7 @@ function EventCard({ ev, onUpdate, onDelete, role }) {
                ))}
                <div className="flex justify-between p-4 mt-4 border-t border-slate-200 pt-6">
                  <span className="text-[10px] font-black text-slate-300 uppercase">Total Estimado</span>
-                 <span className="text-xl font-black text-slate-800">${ev.gastos.reduce((a, b) => a + b.costo, 0).toLocaleString()}</span>
+                 <span className="text-xl font-black text-slate-800">${ev.gastos?.reduce((a, b) => a + b.costo, 0).toLocaleString() || 0}</span>
                </div>
             </div>
          </div>
