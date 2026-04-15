@@ -3,18 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
     <title>AccountMatrix Hub</title>
+    <!-- Tailwind via CDN -->
+    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'ui-sans-serif', 'system-ui'],
+            },
+          },
+        },
+      }
+    </script>
+    <style>
+      @import url('[https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap)');
+      body { font-family: 'Inter', sans-serif; }
+    </style>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module">
-      import React from 'react';
-      import ReactDOM from 'react-dom/client';
-      import App from './App.jsx';
-      ReactDOM.createRoot(document.getElementById('root')).render(
-        React.createElement(React.StrictMode, null, React.createElement(App))
-      );
-    </script>
+    <!-- Esta es la ÚNICA línea de script que debe quedar -->
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
