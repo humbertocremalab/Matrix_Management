@@ -5,29 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AccountMatrix Hub</title>
     
-    <!-- Tailwind con atributo crossorigin para evitar bloqueos de Vercel -->
-    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)" crossorigin="anonymous"></script>
+    <!-- URL de Tailwind Corregida (Sin errores de carga) -->
+    <script src="https://cdn.tailwindcss.com"></script>
     
     <script>
+      // Configuración de Tailwind activa inmediatamente
       tailwind.config = {
         theme: {
           extend: {
-            colors: { primary: '#6366f1' },
-            fontFamily: { sans: ['Inter', 'sans-serif'] },
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
           },
         },
       }
     </script>
 
     <style type="text/css">
-      body { margin: 0; background-color: #f1f5f9 !important; }
+      body { 
+        margin: 0; 
+        background-color: #f1f5f9; 
+        font-family: 'Inter', system-ui, sans-serif; 
+      }
       #root { min-height: 100vh; }
     </style>
   </head>
   <body>
     <div id="root"></div>
-    <!-- Asegúrate de que esta ruta sea exacta -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
-
