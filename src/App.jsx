@@ -42,12 +42,27 @@ import {
   Folder
 } from 'lucide-react';
 
-// --- CONFIGURACIÓN FIREBASE ---
-const firebaseConfig = JSON.parse(__firebase_config);
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyCi3nxC2c8Sp4JAs9ylU4uxVagVXToP8HM",
+  authDomain: "accountmatrixhub.firebaseapp.com",
+  projectId: "accountmatrixhub",
+  storageBucket: "accountmatrixhub.firebasestorage.app",
+  messagingSenderId: "912278749399",
+  appId: "1:912278749399:web:f6c4f8f575b01243d2b092",
+  measurementId: "G-TLQ1WDTS38"
+};
+
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'account-manager-hub';
+const analytics = getAnalytics(app);
 
 // --- COMPONENTES ATÓMICOS ---
 
