@@ -20,7 +20,10 @@ import {
   FolderOpen,
   Image as ImageIcon,
   Loader2,
-  X
+  X,
+  TrendingUp,
+  Target,
+  Users
 } from 'lucide-react';
 
 // Firebase
@@ -69,10 +72,14 @@ export default function App() {
   // Auth
   useEffect(() => {
     const initAuth = async () => {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (err) {
+        console.error("Auth error", err);
       }
     };
     initAuth();
@@ -83,7 +90,7 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     const docRef = doc(db, 'artifacts', APP_ID, 'public', 'main_data');
-    return onSnapshot(docRef, (snap) => {
+    const unsubscribe = onSnapshot(docRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
         if (data.metaData) setMetaData(data.metaData);
@@ -92,10 +99,15 @@ export default function App() {
         if (data.express) setExpress(data.express);
       }
       setLoading(false);
+    }, (error) => {
+      console.error("Snapshot error:", error);
+      setLoading(false);
     });
+    return () => unsubscribe();
   }, [user]);
 
   const saveData = async (updates) => {
+    if (!user) return;
     const docRef = doc(db, 'artifacts', APP_ID, 'public', 'main_data');
     await setDoc(docRef, {
       metaData, eventos, insumos, express, ...updates
@@ -305,6 +317,12 @@ export default function App() {
                       const newEventos = eventos.map(e => e.id === ev.id ? updated : e);
                       setEventos(newEventos);
                       saveData({ eventos: newEventos });
+                    }} onDelete={() => {
+                      if(confirm('¿Eliminar evento?')) {
+                        const newEventos = eventos.filter(e => e.id !== ev.id);
+                        setEventos(newEventos);
+                        saveData({ eventos: newEventos });
+                      }
                     }} />
                   ))
                 )}
@@ -356,16 +374,18 @@ export default function App() {
                   onKeyDown={e => {
                     if(e.key === 'Enter') {
                       const input = e.currentTarget;
-                      const newExpress = [...express, { id: Date.now(), text: input.value, entry: new Date().toLocaleDateString('es-ES', {day:'2-digit', month:'short'}), done: false, priority: 'Media' }];
-                      setExpress(newExpress);
-                      saveData({ express: newExpress });
-                      input.value = '';
+                      if(input.value) {
+                        const newExpress = [...express, { id: Date.now(), text: input.value, entry: new Date().toLocaleDateString('es-ES', {day:'2-digit', month:'short'}), done: false, priority: 'Media' }];
+                        setExpress(newExpress);
+                        saveData({ express: newExpress });
+                        input.value = '';
+                      }
                     }
                   }}
                 />
                 <button onClick={() => {
                    const input = document.getElementById('newExpress');
-                   if(input.value) {
+                   if(input && input.value) {
                     const newExpress = [...express, { id: Date.now(), text: input.value, entry: new Date().toLocaleDateString('es-ES', {day:'2-digit', month:'short'}), done: false, priority: 'Media' }];
                     setExpress(newExpress);
                     saveData({ express: newExpress });
@@ -541,7 +561,7 @@ function DriveCarousel({ title, folderId, onLink }) {
   );
 }
 
-function EventCard({ ev, onUpdate }) {
+function EventCard({ ev, onUpdate, onDelete }) {
   const [task, setTask] = useState('');
   const [act, setAct] = useState('');
   const [price, setPrice] = useState('');
@@ -556,7 +576,7 @@ function EventCard({ ev, onUpdate }) {
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{ev.fecha}</p>
           </div>
         </div>
-        <button className="p-2 text-slate-300 hover:text-rose-500"><Trash2 size={20}/></button>
+        <button onClick={onDelete} className="p-2 text-slate-300 hover:text-rose-500"><Trash2 size={20}/></button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
@@ -599,7 +619,7 @@ function EventCard({ ev, onUpdate }) {
              {ev.gastos.map((g, idx) => (
                <div key={idx} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-xl shadow-sm">
                  <span className="text-sm font-bold text-slate-600">{g.text}</span>
-                 <span className="text-sm font-black text-slate-800">${g.costo.toLocaleString()}</span>
+                 <span className="text-sm font-black text-slate-800">${parseFloat(g.costo).toLocaleString()}</span>
                </div>
              ))}
              <div className="flex gap-2">
@@ -630,7 +650,7 @@ function InsumoCard({ item }) {
           <div className="w-10 h-10 bg-indigo-50 text-indigo-500 rounded-xl flex items-center justify-center"><Package size={20}/></div>
           <div>
             <h5 className="font-bold text-slate-800 leading-tight">{item.nombre}</h5>
-            <p className="text-[10px] font-bold text-slate-400">Tríptico</p>
+            <p className="text-[10px] font-bold text-slate-400">Material</p>
           </div>
         </div>
         <button className="text-slate-200 hover:text-slate-400 transition-colors"><MoreHorizontal size={20}/></button>
@@ -638,10 +658,10 @@ function InsumoCard({ item }) {
       
       <div className="space-y-3">
         <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
-          <Clock size={12}/> Sucursal Centro
+          <Clock size={12}/> {item.sucursal}
         </div>
         <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
-          <Calendar size={12}/> Renueva: 19 abr 2026
+          <Calendar size={12}/> Renueva: {new Date(item.lastDate).toLocaleDateString()}
         </div>
       </div>
 
@@ -676,7 +696,7 @@ function ExpressTask({ task, onToggle }) {
 }
 
 // Icons
-function UsersIcon({color}) { return <div className={`p-2 rounded-xl ${color}`}><LayoutDashboard size={20}/></div> }
-function TargetIcon({color}) { return <div className={`p-2 rounded-xl ${color}`}><Zap size={20}/></div> }
+function UsersIcon({color}) { return <div className={`p-2 rounded-xl ${color}`}><Users size={20}/></div> }
+function TargetIcon({color}) { return <div className={`p-2 rounded-xl ${color}`}><Target size={20}/></div> }
 function MoneyIcon({color}) { return <div className={`p-2 rounded-xl ${color}`}><DollarSign size={20}/></div> }
-function ChartIcon({color}) { return <div className={`p-2 rounded-xl ${color}`}><LayoutDashboard size={20}/></div> }
+function ChartIcon({color}) { return <div className={`p-2 rounded-xl ${color}`}><TrendingUp size={20}/></div> }
