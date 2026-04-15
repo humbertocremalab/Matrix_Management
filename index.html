@@ -5,44 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AccountMatrix Hub</title>
     
-    <!-- Cargador de Tailwind CSS (Versión Clásica) -->
-    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
+    <!-- Tailwind con atributo crossorigin para evitar bloqueos de Vercel -->
+    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)" crossorigin="anonymous"></script>
     
-    <!-- Configuración Proactiva de Tailwind -->
-    <script type="text/javascript">
-      window.tailwind.config = {
+    <script>
+      tailwind.config = {
         theme: {
           extend: {
-            colors: {
-              primary: '#6366f1',
-            },
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-            },
+            colors: { primary: '#6366f1' },
+            fontFamily: { sans: ['Inter', 'sans-serif'] },
           },
         },
       }
     </script>
 
     <style type="text/css">
-      /* Forzamos un estilo básico por si el CDN de Tailwind falla */
-      body { 
-        margin: 0; 
-        background-color: #f1f5f9 !important; 
-        font-family: sans-serif;
-      }
-      #root { min-height: 100vh; display: block; }
+      body { margin: 0; background-color: #f1f5f9 !important; }
+      #root { min-height: 100vh; }
     </style>
   </head>
   <body>
     <div id="root"></div>
-    
-    <!-- Diagnóstico de carga (Ver en consola F12 si algo falla) -->
-    <script type="text/javascript">
-      console.log("HTML cargado, intentando iniciar React...");
-    </script>
-
-    <!-- IMPORTANTE: El script debe ir con la ruta relativa correcta -->
+    <!-- Asegúrate de que esta ruta sea exacta -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
