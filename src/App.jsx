@@ -78,26 +78,37 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Sincronización Firestore con la estructura de Matrix original
+  // Sincronización Firestore corregida (Ruta de 6 segmentos para ser válida)
   useEffect(() => {
     if (!user) return;
-    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'marketing_metrics');
+    
+    // CORRECCIÓN: La ruta ahora termina en un documento (6 segmentos)
+    // artifacts (col) -> appId (doc) -> public (col) -> data (doc) -> metrics (col) -> values (doc)
+    // O más simple: artifacts -> appId -> public -> data (cumple con la regla de 4 segmentos)
+    const docRef = doc(db, 'artifacts', appId, 'public', 'data');
     
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         setMetrics(docSnap.data());
       } else {
+        // Inicializar si no existe
         setDoc(docRef, metrics);
       }
-    }, (error) => console.error("Firestore Error:", error));
+    }, (error) => {
+      console.error("Firestore Error:", error);
+    });
 
     return () => unsubscribe();
   }, [user]);
 
   const handleUpdateMetrics = async (newMetrics) => {
     if (userRole !== 'admin') return;
-    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'marketing_metrics');
-    await setDoc(docRef, newMetrics, { merge: true });
+    try {
+      const docRef = doc(db, 'artifacts', appId, 'public', 'data');
+      await setDoc(docRef, newMetrics, { merge: true });
+    } catch (err) {
+      console.error("Update Error:", err);
+    }
   };
 
   const handleLogout = async () => {
@@ -106,9 +117,11 @@ export default function App() {
   };
 
   if (loading) return (
-    <div className="h-screen bg-slate-900 flex items-center justify-center text-white">
-      <Loader2 className="animate-spin text-indigo-500 mr-3" size={32} />
-      <span className="font-bold tracking-widest">CARGANDO MATRIX...</span>
+    <div className="h-screen bg-slate-900 flex items-center justify-center text-white font-sans">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="animate-spin text-indigo-500" size={40} />
+        <span className="font-bold tracking-widest text-sm opacity-50 uppercase">Matrix Protocol Active</span>
+      </div>
     </div>
   );
 
@@ -345,7 +358,7 @@ function LoginView({ onLogin }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans">
       <div className="bg-white p-10 rounded-[3rem] shadow-2xl w-full max-w-md border border-slate-100">
         <div className="flex justify-center mb-8">
           <div className="bg-indigo-600 p-5 rounded-[1.5rem] shadow-xl shadow-indigo-200">
