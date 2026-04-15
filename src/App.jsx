@@ -1,730 +1,668 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { initializeApp } from 'firebase/app';
+import { 
+  getFirestore, 
+  collection, 
+  doc, 
+  setDoc, 
+  onSnapshot, 
+  query, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc,
+  getDocs
+} from 'firebase/firestore';
+import { 
+  getAuth, 
+  signInAnonymously, 
+  onAuthStateChanged 
+} from 'firebase/auth';
 import { 
   LayoutDashboard, 
   Calendar, 
-  Package, 
+  RefreshCcw, 
   Zap, 
   Plus, 
-  MoreHorizontal, 
+  Trash2, 
   CheckCircle2, 
-  Circle, 
-  ChevronLeft, 
-  ChevronRight, 
-  ExternalLink,
-  Edit2,
-  Save,
-  Trash2,
-  Clock,
-  DollarSign,
-  LogOut,
+  DollarSign, 
   FolderOpen,
-  Image as ImageIcon,
-  Loader2,
-  X,
-  Target,
-  Users,
-  TrendingUp
+  ChevronLeft,
+  ChevronRight,
+  LogOut,
+  User
 } from 'lucide-react';
 
-// Firebase
-import { initializeApp } from "firebase/app";
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "firebase/auth";
-import { getFirestore, doc, setDoc, onSnapshot } from "firebase/firestore";
-
-// --- CONFIG ---
-const DRIVE_API_KEY = "AIzaSyBH8-5rLNM_--UWRMIywOb-m5-UOuzUYUw";
+// --- CONFIGURACIÓN FIREBASE ---
 const firebaseConfig = {
   apiKey: "AIzaSyCi3nxC2c8Sp4JAs9ylU4uxVagVXToP8HM",
   authDomain: "accountmatrixhub.firebaseapp.com",
   projectId: "accountmatrixhub",
   storageBucket: "accountmatrixhub.firebasestorage.app",
   messagingSenderId: "912278749399",
-  appId: "1:912278749399:web:f6c4f8f575b01243d2b092"
+  appId: "1:912278749399:web:f6c4f8f575b01243d2b092",
+  measurementId: "G-TLQ1WDTS38"
 };
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'account-matrix-hub';
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'account-manager-hub';
+const DRIVE_API_KEY = "AIzaSyBH8-5rLNM_--UWRMIywOb-m5-UOuzUYUw";
 
-// --- MAIN APP ---
-export default function App() {
-  const [user, setUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('meta');
-  const [isEditingMetrics, setIsEditingMetrics] = useState(false);
-  const [loading, setLoading] = useState(true);
+// --- COMPONENTES AUXILIARES ---
 
-  // Estados de datos
-  const [metaData, setMetaData] = useState({
-    metrics: { leads: 145, metaLeads: 200, budget: 15000, spent: 8750 },
-    checklists: {
-      awareness: [{ id: 1, text: 'Creativos de video listos', done: true }, { id: 2, text: 'Segmentación configurada', done: false }],
-      prospeccion: [{ id: 3, text: 'Landing page optimizada', done: true }, { id: 4, text: 'Formulario de contacto activo', done: false }],
-      retargeting: [{ id: 5, text: 'Audiencias personalizadas creadas', done: false }, { id: 6, text: 'Pixel instalado en web', done: true }]
-    },
-    drive: { awareness: '', prospeccion: '', retargeting: '' }
-  });
+const Card = ({ children, title, className = "" }) => (
+  <div className={`bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 ${className}`}>
+    {title && <h3 className="text-lg font-semibold mb-4 text-slate-800 dark:text-slate-100">{title}</h3>}
+    {children}
+  </div>
+);
 
-  const [eventos, setEventos] = useState([]);
-  const [insumos, setInsumos] = useState([]);
-  const [express, setExpress] = useState([]);
-
-  // Auth
-  useEffect(() => {
-    const initAuth = async () => {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
-      }
-    };
-    initAuth();
-    return onAuthStateChanged(auth, setUser);
-  }, []);
-
-  // Sync Firestore
-  useEffect(() => {
-    if (!user) return;
-    const docRef = doc(db, 'artifacts', APP_ID, 'public', 'main_data');
-    return onSnapshot(docRef, (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data.metaData) setMetaData(data.metaData);
-        if (data.eventos) setEventos(data.eventos);
-        if (data.insumos) setInsumos(data.insumos);
-        if (data.express) setExpress(data.express);
-      }
-      setLoading(false);
-    }, (error) => {
-      console.error("Error fetching data:", error);
-      setLoading(false);
-    });
-  }, [user]);
-
-  const saveData = async (updates) => {
-    const docRef = doc(db, 'artifacts', APP_ID, 'public', 'main_data');
-    await setDoc(docRef, {
-      metaData, eventos, insumos, express, ...updates
-    }, { merge: true });
+const Button = ({ children, onClick, variant = "primary", className = "" }) => {
+  const variants = {
+    primary: "bg-blue-600 hover:bg-blue-700 text-white",
+    secondary: "bg-slate-100 hover:bg-slate-200 text-slate-700",
+    danger: "bg-red-50 hover:bg-red-100 text-red-600",
+    ghost: "hover:bg-slate-50 text-slate-500"
   };
-
-  if (!user || loading) return (
-    <div className="h-screen flex items-center justify-center bg-slate-50">
-      <Loader2 className="animate-spin text-blue-600" size={40} />
-    </div>
-  );
-
-  return (
-    <div className="flex h-screen bg-[#f8fafc] text-slate-800 overflow-hidden font-sans">
-      {/* Sidebar - Desktop */}
-      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-slate-200">
-        <div className="p-6 flex items-center gap-3">
-          <div className="bg-blue-600 p-2 rounded-lg text-white">
-            <LayoutDashboard size={20} />
-          </div>
-          <div>
-            <h1 className="font-bold text-lg leading-tight">Account</h1>
-            <p className="text-xs text-slate-400">Manager</p>
-          </div>
-        </div>
-
-        <nav className="flex-1 px-4 space-y-2 mt-4">
-          <NavItem active={activeTab === 'meta'} icon={<Zap size={18}/>} label="Embudo Meta" onClick={() => setActiveTab('meta')} />
-          <NavItem active={activeTab === 'eventos'} icon={<Calendar size={18}/>} label="Eventos" onClick={() => setActiveTab('eventos')} />
-          <NavItem active={activeTab === 'insumos'} icon={<Package size={18}/>} label="Insumos" onClick={() => setActiveTab('insumos')} />
-          <NavItem active={activeTab === 'express'} icon={<Zap size={18}/>} label="Express" onClick={() => setActiveTab('express')} />
-        </nav>
-
-        <div className="p-4 border-t border-slate-100">
-          <button onClick={() => signOut(auth)} className="flex items-center gap-3 w-full p-3 text-slate-500 hover:bg-slate-50 rounded-xl transition-all">
-            <LogOut size={18} /> <span className="text-sm font-medium">Cerrar sesión</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* Mobile Nav */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around p-3 z-50">
-          <MobileIcon active={activeTab === 'meta'} icon={<Zap/>} onClick={() => setActiveTab('meta')} />
-          <MobileIcon active={activeTab === 'eventos'} icon={<Calendar/>} onClick={() => setActiveTab('eventos')} />
-          <MobileIcon active={activeTab === 'insumos'} icon={<Package/>} onClick={() => setActiveTab('insumos')} />
-          <MobileIcon active={activeTab === 'express'} icon={<Zap/>} onClick={() => setActiveTab('express')} />
-      </div>
-
-      {/* Content Area */}
-      <main className="flex-1 overflow-y-auto pb-24 md:pb-0">
-        <div className="max-w-6xl mx-auto p-6 md:p-10">
-          {activeTab === 'meta' && (
-            <div className="space-y-10 animate-in fade-in duration-500">
-              <header className="flex justify-between items-end">
-                <div>
-                  <h2 className="text-3xl font-bold tracking-tight">Embudo Meta</h2>
-                  <p className="text-slate-500 mt-1">Gestiona tus campañas y leads de Meta Ads</p>
-                </div>
-                <button 
-                  onClick={() => {
-                    if (isEditingMetrics) saveData({ metaData });
-                    setIsEditingMetrics(!isEditingMetrics);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-semibold shadow-sm hover:bg-slate-50 transition-all"
-                >
-                  {isEditingMetrics ? <><Save size={16}/> Guardar</> : <><Edit2 size={16}/> Editar</>}
-                </button>
-              </header>
-
-              {/* Visual Funnel Representation */}
-              <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-                <h3 className="text-center font-bold text-slate-400 uppercase tracking-widest text-xs mb-8">Estructura del Embudo (AWA - RET - PRO)</h3>
-                <div className="flex flex-col items-center gap-1">
-                  {/* AWA Step */}
-                  <div className="w-full max-w-2xl bg-gradient-to-r from-blue-600 to-blue-500 h-20 rounded-t-2xl flex items-center justify-between px-10 text-white shadow-lg relative" style={{ clipPath: 'polygon(0% 0%, 100% 0%, 95% 100%, 5% 100%)' }}>
-                    <div className="flex items-center gap-3">
-                      <div className="bg-white/20 p-2 rounded-lg"><Zap size={20}/></div>
-                      <span className="font-black text-lg">AWA</span>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs font-bold opacity-80">Awareness</div>
-                      <div className="font-black">Top of Funnel</div>
-                    </div>
-                  </div>
-
-                  {/* RET Step */}
-                  <div className="w-[85%] max-w-2xl bg-gradient-to-r from-indigo-600 to-indigo-500 h-20 flex items-center justify-between px-10 text-white shadow-lg relative" style={{ clipPath: 'polygon(5% 0%, 95% 0%, 90% 100%, 10% 100%)' }}>
-                    <div className="flex items-center gap-3">
-                      <div className="bg-white/20 p-2 rounded-lg"><TrendingUp size={20}/></div>
-                      <span className="font-black text-lg">RET</span>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs font-bold opacity-80">Retention</div>
-                      <div className="font-black">Middle of Funnel</div>
-                    </div>
-                  </div>
-
-                  {/* PRO Step */}
-                  <div className="w-[70%] max-w-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 h-20 rounded-b-2xl flex items-center justify-between px-10 text-white shadow-lg relative" style={{ clipPath: 'polygon(10% 0%, 90% 0%, 85% 100%, 15% 100%)' }}>
-                    <div className="flex items-center gap-3">
-                      <div className="bg-white/20 p-2 rounded-lg"><Target size={20}/></div>
-                      <span className="font-black text-lg">PRO</span>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs font-bold opacity-80">Product</div>
-                      <div className="font-black">Bottom of Funnel</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Métricas Principales */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <MetricCard 
-                  label="Leads Generados" 
-                  value={metaData.metrics.leads} 
-                  icon={<UsersIcon color="bg-blue-50 text-blue-600" />}
-                  editing={isEditingMetrics}
-                  onChange={(v) => setMetaData({...metaData, metrics: {...metaData.metrics, leads: v}})}
-                />
-                <MetricCard 
-                  label="Meta de Leads" 
-                  value={metaData.metrics.metaLeads} 
-                  subtext={`${Math.round((metaData.metrics.leads/metaData.metrics.metaLeads)*100)}% alcanzado`}
-                  icon={<TargetIcon color="bg-emerald-50 text-emerald-600" />}
-                  editing={isEditingMetrics}
-                  onChange={(v) => setMetaData({...metaData, metrics: {...metaData.metrics, metaLeads: v}})}
-                />
-                <MetricCard 
-                  label="Presupuesto" 
-                  value={`$${metaData.metrics.budget.toLocaleString()}`} 
-                  icon={<MoneyIcon color="bg-indigo-50 text-indigo-600" />}
-                  editing={isEditingMetrics}
-                  isCurrency
-                  onChange={(v) => setMetaData({...metaData, metrics: {...metaData.metrics, budget: v}})}
-                />
-                <MetricCard 
-                  label="Gasto" 
-                  value={`$${metaData.metrics.spent.toLocaleString()}`} 
-                  subtext={`${Math.round((metaData.metrics.spent/metaData.metrics.budget)*100)}% usado`}
-                  icon={<ChartIcon color="bg-amber-50 text-amber-600" />}
-                  editing={isEditingMetrics}
-                  isCurrency
-                  onChange={(v) => setMetaData({...metaData, metrics: {...metaData.metrics, spent: v}})}
-                />
-              </div>
-
-              {/* Checklist Embudo */}
-              <div className="space-y-4">
-                <h3 className="font-bold text-lg">Checklist del Embudo</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <ChecklistCol 
-                    title="Awareness" 
-                    items={metaData.checklists.awareness} 
-                    color="border-l-4 border-blue-500"
-                    onUpdate={(items) => {
-                      const newMeta = { ...metaData, checklists: { ...metaData.checklists, awareness: items }};
-                      setMetaData(newMeta);
-                      saveData({ metaData: newMeta });
-                    }}
-                  />
-                  <ChecklistCol 
-                    title="Prospección" 
-                    items={metaData.checklists.prospeccion} 
-                    color="border-l-4 border-emerald-500"
-                    onUpdate={(items) => {
-                      const newMeta = { ...metaData, checklists: { ...metaData.checklists, prospeccion: items }};
-                      setMetaData(newMeta);
-                      saveData({ metaData: newMeta });
-                    }}
-                  />
-                  <ChecklistCol 
-                    title="Retargeting" 
-                    items={metaData.checklists.retargeting} 
-                    color="border-l-4 border-purple-500"
-                    onUpdate={(items) => {
-                      const newMeta = { ...metaData, checklists: { ...metaData.checklists, retargeting: items }};
-                      setMetaData(newMeta);
-                      saveData({ metaData: newMeta });
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Artes del Embudo */}
-              <div className="space-y-6">
-                <h3 className="font-bold text-lg">Artes del Embudo</h3>
-                <div className="space-y-6">
-                  <DriveCarousel 
-                    title="Awareness" 
-                    folderId={metaData.drive.awareness} 
-                    onLink={(id) => {
-                      const newMeta = {...metaData, drive: {...metaData.drive, awareness: id}};
-                      setMetaData(newMeta);
-                      saveData({ metaData: newMeta });
-                    }}
-                  />
-                  <DriveCarousel 
-                    title="Prospección" 
-                    folderId={metaData.drive.prospeccion} 
-                    onLink={(id) => {
-                      const newMeta = {...metaData, drive: {...metaData.drive, prospeccion: id}};
-                      setMetaData(newMeta);
-                      saveData({ metaData: newMeta });
-                    }}
-                  />
-                  <DriveCarousel 
-                    title="Retargeting" 
-                    folderId={metaData.drive.retargeting} 
-                    onLink={(id) => {
-                      const newMeta = {...metaData, drive: {...metaData.drive, retargeting: id}};
-                      setMetaData(newMeta);
-                      saveData({ metaData: newMeta });
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'eventos' && (
-            <div className="space-y-8 animate-in slide-in-from-right duration-500">
-              <header className="flex justify-between items-center">
-                <div>
-                  <h2 className="text-3xl font-bold tracking-tight">Eventos</h2>
-                  <p className="text-slate-500 mt-1">Gestiona tareas y gastos de tus eventos</p>
-                </div>
-                <button 
-                  onClick={() => {
-                    const nombre = prompt('Nombre del evento:');
-                    if(nombre) {
-                      const newEventos = [...eventos, { id: Date.now(), nombre, fecha: new Date().toLocaleDateString(), tareas: [], gastos: [] }];
-                      setEventos(newEventos);
-                      saveData({ eventos: newEventos });
-                    }
-                  }}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all"
-                >
-                  <Plus size={18}/> Nuevo Evento
-                </button>
-              </header>
-
-              <div className="grid grid-cols-1 gap-8">
-                {eventos.length === 0 ? (
-                  <div className="py-20 text-center text-slate-400 font-medium">No hay eventos creados. Selecciona o crea uno para comenzar.</div>
-                ) : (
-                  eventos.map(ev => (
-                    <EventCard key={ev.id} ev={ev} onUpdate={(updated) => {
-                      const newEventos = eventos.map(e => e.id === ev.id ? updated : e);
-                      setEventos(newEventos);
-                      saveData({ eventos: newEventos });
-                    }} />
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'insumos' && (
-            <div className="space-y-8 animate-in slide-in-from-right duration-500">
-              <header className="flex justify-between items-center">
-                <div>
-                  <h2 className="text-3xl font-bold tracking-tight">Insumos y Renovaciones</h2>
-                  <p className="text-slate-500 mt-1">Control de materiales impresos en sucursal</p>
-                </div>
-                <button 
-                  onClick={() => {
-                    const nombre = prompt('Nombre del material:');
-                    if(nombre) {
-                      const newInsumos = [...insumos, { id: Date.now(), nombre, sucursal: 'Sucursal Centro', dias: 30, lastDate: new Date().toISOString() }];
-                      setInsumos(newInsumos);
-                      saveData({ insumos: newInsumos });
-                    }
-                  }}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all"
-                >
-                  <Plus size={18}/> Agregar
-                </button>
-              </header>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {insumos.map(ins => (
-                  <InsumoCard key={ins.id} item={ins} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'express' && (
-            <div className="space-y-8 animate-in slide-in-from-right duration-500 max-w-3xl">
-              <header>
-                <h2 className="text-3xl font-bold tracking-tight">Tareas Express</h2>
-                <p className="text-slate-500 mt-1">Tareas no planificadas del día a día</p>
-              </header>
-              <div className="flex gap-2">
-                <input 
-                  id="newExpress"
-                  type="text" 
-                  placeholder="Nueva tarea express..." 
-                  className="flex-1 p-4 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium" 
-                  onKeyDown={e => {
-                    if(e.key === 'Enter') {
-                      const input = e.currentTarget;
-                      const newExpress = [...express, { id: Date.now(), text: input.value, entry: new Date().toLocaleDateString('es-ES', {day:'2-digit', month:'short'}), done: false, priority: 'Media' }];
-                      setExpress(newExpress);
-                      saveData({ express: newExpress });
-                      input.value = '';
-                    }
-                  }}
-                />
-                <button onClick={() => {
-                    const input = document.getElementById('newExpress');
-                    if(input.value) {
-                     const newExpress = [...express, { id: Date.now(), text: input.value, entry: new Date().toLocaleDateString('es-ES', {day:'2-digit', month:'short'}), done: false, priority: 'Media' }];
-                     setExpress(newExpress);
-                     saveData({ express: newExpress });
-                     input.value = '';
-                    }
-                }} className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-lg shadow-blue-100">Agregar</button>
-              </div>
-
-              <div className="space-y-3">
-                {express.map(task => (
-                  <ExpressTask key={task.id} task={task} onToggle={() => {
-                    const newExp = express.map(t => t.id === task.id ? {...t, done: !t.done, exit: !t.done ? new Date().toLocaleDateString('es-ES', {day:'2-digit', month:'short'}) : null} : t);
-                    setExpress(newExp);
-                    saveData({ express: newExp });
-                  }} />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </main>
-    </div>
-  );
-}
-
-// --- COMPONENTS ---
-
-function NavItem({ active, icon, label, onClick }) {
   return (
     <button 
-      onClick={onClick}
-      className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all font-bold ${active ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'text-slate-500 hover:bg-slate-50'}`}
+      onClick={onClick} 
+      className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${variants[variant]} ${className}`}
     >
-      {icon} <span className="text-sm">{label}</span>
+      {children}
     </button>
   );
-}
+};
 
-function MobileIcon({ active, icon, onClick }) {
-  return (
-    <button onClick={onClick} className={`p-2 rounded-lg ${active ? 'text-blue-600' : 'text-slate-400'}`}>
-      {React.cloneElement(icon, { size: 24 })}
-    </button>
-  );
-}
+// --- VISTAS PRINCIPALES ---
 
-function MetricCard({ label, value, subtext, icon, editing, onChange, isCurrency }) {
-  return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex justify-between items-start">
-      <div className="space-y-2 flex-1">
-        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{label}</span>
-        {editing ? (
-          <input 
-            type="number" 
-            className="w-full text-xl font-black text-slate-800 border-b-2 border-blue-500 outline-none" 
-            defaultValue={typeof value === 'string' ? value.replace(/[^0-9]/g, '') : value} 
-            onChange={e => onChange(parseFloat(e.target.value) || 0)}
-          />
-        ) : (
-          <div className="text-2xl font-black text-slate-800">{value}</div>
-        )}
-        {subtext && <p className="text-[10px] font-bold text-slate-500">{subtext}</p>}
-      </div>
-      <div className="ml-4">{icon}</div>
-    </div>
-  );
-}
+const MetaFunnelView = ({ data, onUpdate }) => {
+  const [newFolderId, setNewFolderId] = useState("");
 
-function ChecklistCol({ title, items, color, onUpdate }) {
-  const [input, setInput] = useState('');
+  const updateField = (field, value) => {
+    onUpdate({ ...data, [field]: value });
+  };
+
+  const toggleCheck = (section, index) => {
+    const newList = [...(data[section] || [])];
+    newList[index].checked = !newList[index].checked;
+    onUpdate({ ...data, [section]: newList });
+  };
+
+  const leadProgress = data.leadsMeta > 0 ? (data.leadsGenerados / data.leadsMeta) * 100 : 0;
+  const budgetProgress = data.presupuestoTotal > 0 ? (data.presupuestoGastado / data.presupuestoTotal) * 100 : 0;
+
   return (
-    <div className={`bg-white p-5 rounded-2xl border border-slate-100 shadow-sm ${color}`}>
-      <div className="flex justify-between items-center mb-4">
-        <h4 className="font-black text-sm text-slate-800">{title}</h4>
-        <span className="text-[10px] font-black bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
-          {items.filter(i => i.done).length}/{items.length}
-        </span>
-      </div>
-      <div className="space-y-3 min-h-[100px]">
-        {items.map(item => (
-          <div key={item.id} className="flex items-center gap-3 group">
-            <button onClick={() => onUpdate(items.map(i => i.id === item.id ? {...i, done: !i.done} : i))}>
-              {item.done ? <CheckCircle2 size={18} className="text-blue-500" /> : <Circle size={18} className="text-slate-300" />}
-            </button>
-            <span className={`text-sm font-medium flex-1 ${item.done ? 'text-slate-400 line-through' : 'text-slate-600'}`}>{item.text}</span>
+    <div className="space-y-6 pb-20">
+      {/* Métricas Principales */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card title="KPIs de Leads">
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-slate-500 uppercase font-bold">Meta</label>
+                <input 
+                  type="number" 
+                  className="w-full text-2xl font-bold bg-transparent border-b border-slate-200 focus:outline-none focus:border-blue-500"
+                  value={data.leadsMeta || 0}
+                  onChange={(e) => updateField('leadsMeta', Number(e.target.value))}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-500 uppercase font-bold">Generados</label>
+                <input 
+                  type="number" 
+                  className="w-full text-2xl font-bold bg-transparent border-b border-slate-200 focus:outline-none focus:border-blue-500"
+                  value={data.leadsGenerados || 0}
+                  onChange={(e) => updateField('leadsGenerados', Number(e.target.value))}
+                />
+              </div>
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-3">
+              <div 
+                className="bg-blue-600 h-3 rounded-full transition-all" 
+                style={{ width: `${Math.min(leadProgress, 100)}%` }}
+              ></div>
+            </div>
+            <p className="text-sm text-slate-600 text-right font-medium">{leadProgress.toFixed(1)}% Alcanzado</p>
           </div>
-        ))}
-        <div className="flex gap-2 mt-4">
-          <input 
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            placeholder="Nuevo item..." 
-            className="flex-1 text-xs p-2 bg-slate-50 border border-slate-100 rounded-lg outline-none"
-            onKeyDown={e => {
-              if(e.key === 'Enter' && input) {
-                onUpdate([...items, { id: Date.now(), text: input, done: false }]);
-                setInput('');
-              }
-            }}
-          />
-          <button onClick={() => {
-            if(input) {
-              onUpdate([...items, { id: Date.now(), text: input, done: false }]);
-              setInput('');
-            }
-          }} className="text-slate-400 hover:text-blue-500"><Plus size={16}/></button>
-        </div>
+        </Card>
+
+        <Card title="Presupuesto">
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-slate-500 uppercase font-bold">Total</label>
+                <div className="flex items-center">
+                  <span className="text-slate-400">$</span>
+                  <input 
+                    type="number" 
+                    className="w-full text-2xl font-bold bg-transparent border-b border-slate-200 focus:outline-none focus:border-green-500"
+                    value={data.presupuestoTotal || 0}
+                    onChange={(e) => updateField('presupuestoTotal', Number(e.target.value))}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-slate-500 uppercase font-bold">Gastado</label>
+                <div className="flex items-center text-red-600">
+                  <span className="text-red-400">$</span>
+                  <input 
+                    type="number" 
+                    className="w-full text-2xl font-bold bg-transparent border-b border-slate-200 focus:outline-none focus:border-red-500"
+                    value={data.presupuestoGastado || 0}
+                    onChange={(e) => updateField('presupuestoGastado', Number(e.target.value))}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-3">
+              <div 
+                className="bg-green-500 h-3 rounded-full transition-all" 
+                style={{ width: `${Math.min(budgetProgress, 100)}%` }}
+              ></div>
+            </div>
+            <p className="text-sm text-slate-600 text-right font-medium">{budgetProgress.toFixed(1)}% Consumido</p>
+          </div>
+        </Card>
       </div>
+
+      {/* Checklists */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {['awareness', 'prospeccion', 'retargeting'].map((section) => (
+          <Card key={section} title={section.charAt(0).toUpperCase() + section.slice(1)}>
+            <div className="space-y-2">
+              {(data[section] || []).map((item, idx) => (
+                <div key={idx} className="flex items-center gap-2 group">
+                  <input 
+                    type="checkbox" 
+                    checked={item.checked} 
+                    onChange={() => toggleCheck(section, idx)}
+                    className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className={`text-sm ${item.checked ? 'line-through text-slate-400' : 'text-slate-700'}`}>
+                    {item.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Artes Drive Carousel */}
+      <Card title="Artes del Embudo (Drive)">
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <input 
+              placeholder="Pegar ID de Carpeta de Drive" 
+              className="flex-1 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              value={newFolderId}
+              onChange={(e) => setNewFolderId(e.target.value)}
+            />
+            <Button onClick={() => { updateField('driveFolderId', newFolderId); setNewFolderId(""); }}>
+              Conectar
+            </Button>
+            {data.driveFolderId && (
+              <Button variant="danger" onClick={() => updateField('driveFolderId', "")}>
+                Quitar
+              </Button>
+            )}
+          </div>
+
+          <div className="relative bg-slate-50 dark:bg-slate-900 rounded-xl p-4 min-h-[400px] flex items-center justify-center border-2 border-dashed border-slate-200">
+            {data.driveFolderId ? (
+              <div className="w-full flex flex-col items-center">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 w-full">
+                  {/* Mockup de visualización de Drive - 9:16 format */}
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="aspect-[9/16] bg-slate-200 rounded-lg shadow animate-pulse flex items-center justify-center text-slate-400 text-xs text-center p-2">
+                      Vista previa de Arte {i}<br/>Folder: {data.driveFolderId.substring(0,6)}...
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-4 text-xs text-slate-500 italic">Conectado vía Drive API Key: {DRIVE_API_KEY.substring(0,10)}...</p>
+              </div>
+            ) : (
+              <div className="text-center text-slate-400">
+                <FolderOpen className="mx-auto mb-2 opacity-20" size={48} />
+                <p>Ingresa un ID de carpeta para visualizar los artes en formato 9:16</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
     </div>
   );
-}
+};
 
-function DriveCarousel({ title, folderId, onLink }) {
-  const [files, setFiles] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [url, setUrl] = useState(folderId || '');
+const EventsView = ({ items, onAdd, onToggle, onDelete }) => {
+  const [activeTab, setActiveTab] = useState('tasks'); // 'tasks' | 'costs'
+  const [input, setInput] = useState("");
+  const [cost, setCost] = useState("");
 
-  useEffect(() => {
-    if(folderId) {
-      setLoading(true);
-      fetch(`https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents&fields=files(id,name,thumbnailLink,webContentLink)&key=${DRIVE_API_KEY}`)
-        .then(res => res.json())
-        .then(data => {
-          if(data.files) setFiles(data.files);
-          setLoading(false);
-        }).catch(() => setLoading(false));
-    }
-  }, [folderId]);
+  const handleAdd = (e) => {
+    e.preventDefault();
+    if (!input) return;
+    onAdd({
+      type: activeTab,
+      label: input,
+      amount: activeTab === 'costs' ? Number(cost) : 0,
+      completed: false,
+      timestamp: Date.now()
+    });
+    setInput("");
+    setCost("");
+  };
+
+  const totalCost = items.filter(i => i.type === 'costs').reduce((acc, curr) => acc + curr.amount, 0);
 
   return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-      <div className="flex items-center justify-between">
-        <h4 className="font-bold text-slate-800 text-sm">{title}</h4>
-      </div>
-      <div className="flex gap-2">
-        <input 
-          className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-1 focus:ring-blue-500" 
-          placeholder="URL o ID de carpeta de Google Drive..."
-          value={url}
-          onChange={e => setUrl(e.target.value)}
-        />
-        <button 
-          onClick={() => {
-            const id = url.includes('folders/') ? url.split('folders/')[1].split('?')[0] : url;
-            onLink(id);
-          }}
-          className="bg-blue-600 text-white px-6 py-2 rounded-xl text-xs font-bold shadow-md shadow-blue-50"
-        >
-          Conectar
-        </button>
-      </div>
-      
-      {loading ? (
-        <div className="py-12 flex justify-center"><Loader2 className="animate-spin text-blue-500" /></div>
-      ) : files.length > 0 ? (
-        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
-          {files.map(f => (
-            <div key={f.id} className="min-w-[120px] aspect-square bg-slate-50 rounded-xl overflow-hidden relative group">
-              {f.thumbnailLink ? <img src={f.thumbnailLink} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ImageIcon className="text-slate-200"/></div>}
-              <a href={f.webContentLink} target="_blank" className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
-                <ExternalLink className="text-white" size={20} />
-              </a>
+    <div className="space-y-4 pb-20">
+      <Card>
+        <div className="flex p-1 bg-slate-100 rounded-lg mb-4">
+          <button 
+            className={`flex-1 py-2 rounded-md text-sm font-medium transition ${activeTab === 'tasks' ? 'bg-white shadow' : ''}`}
+            onClick={() => setActiveTab('tasks')}
+          >Tareas</button>
+          <button 
+            className={`flex-1 py-2 rounded-md text-sm font-medium transition ${activeTab === 'costs' ? 'bg-white shadow' : ''}`}
+            onClick={() => setActiveTab('costs')}
+          >Gastos/Contratación</button>
+        </div>
+
+        <form onSubmit={handleAdd} className="flex gap-2 mb-6">
+          <input 
+            placeholder={activeTab === 'tasks' ? "Nueva tarea..." : "Actividad/Insumo..."}
+            className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+          />
+          {activeTab === 'costs' && (
+            <input 
+              type="number"
+              placeholder="$"
+              className="w-24 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              value={cost}
+              onChange={(e) => setCost(e.target.value)}
+            />
+          )}
+          <Button onClick={handleAdd} className="h-[42px]"><Plus size={20} /></Button>
+        </form>
+
+        <div className="space-y-3">
+          {items.filter(i => i.type === activeTab).map((item) => (
+            <div key={item.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+              <div className="flex items-center gap-3">
+                {item.type === 'tasks' ? (
+                  <input 
+                    type="checkbox" 
+                    checked={item.completed} 
+                    onChange={() => onToggle(item.id, item.completed)}
+                    className="w-5 h-5 rounded-full border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                ) : (
+                  <DollarSign size={18} className="text-green-600" />
+                )}
+                <div className="flex flex-col">
+                  <span className={item.completed ? 'line-through text-slate-400' : 'text-slate-800 font-medium'}>
+                    {item.label}
+                  </span>
+                  {item.amount > 0 && <span className="text-xs text-green-700 font-bold">${item.amount.toLocaleString()}</span>}
+                </div>
+              </div>
+              <button onClick={() => onDelete(item.id)} className="text-slate-300 hover:text-red-500 p-1">
+                <Trash2 size={16} />
+              </button>
             </div>
           ))}
         </div>
-      ) : (
-        <div className="py-12 border-2 border-dashed border-slate-100 rounded-3xl flex flex-col items-center justify-center text-slate-300">
-          <FolderOpen size={40} className="mb-2 opacity-10" />
-          <p className="text-[10px] font-black uppercase tracking-widest opacity-30">Ingresa la URL o ID de una carpeta de Drive</p>
-        </div>
-      )}
+
+        {activeTab === 'costs' && (
+          <div className="mt-6 pt-4 border-t flex justify-between items-center">
+            <span className="text-slate-500 font-bold">Inversión Total del Evento:</span>
+            <span className="text-xl font-black text-blue-600">${totalCost.toLocaleString()}</span>
+          </div>
+        )}
+      </Card>
     </div>
   );
-}
+};
 
-function EventCard({ ev, onUpdate }) {
-  const [task, setTask] = useState('');
-  const [act, setAct] = useState('');
-  const [price, setPrice] = useState('');
+const RenewalView = ({ items, onAdd, onDelete }) => {
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ name: "", quantity: "", nextDate: "" });
+
+  const handleAdd = () => {
+    if (!form.name || !form.nextDate) return;
+    onAdd({ ...form, id: Date.now() });
+    setForm({ name: "", quantity: "", nextDate: "" });
+    setShowAdd(false);
+  };
 
   return (
-    <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-8">
+    <div className="space-y-6 pb-20">
       <div className="flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center"><Calendar size={24}/></div>
-          <div>
-            <h4 className="text-2xl font-black text-slate-800">{ev.nombre}</h4>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{ev.fecha}</p>
-          </div>
-        </div>
-        <button className="p-2 text-slate-300 hover:text-rose-500"><Trash2 size={20}/></button>
+        <h2 className="text-xl font-bold">Insumos y Renovaciones</h2>
+        <Button onClick={() => setShowAdd(!showAdd)}>
+          {showAdd ? 'Cerrar' : <><Plus size={18} /> Nuevo Insumo</>}
+        </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-        <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-100 space-y-6">
-          <div className="flex items-center justify-between">
-            <h5 className="font-bold flex items-center gap-2"><CheckCircle2 size={18} className="text-blue-500"/> Tareas</h5>
-            <span className="bg-white px-3 py-1 rounded-full text-[10px] font-black text-slate-400 border border-slate-100">
-              {ev.tareas.filter(t => t.done).length}/{ev.tareas.length}
-            </span>
+      {showAdd && (
+        <Card className="bg-blue-50 border-blue-200">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <input 
+              placeholder="Material (ej. Banner, Tríptico)"
+              className="px-3 py-2 border rounded-lg text-sm"
+              value={form.name}
+              onChange={(e) => setForm({...form, name: e.target.value})}
+            />
+            <input 
+              type="number"
+              placeholder="Cantidad"
+              className="px-3 py-2 border rounded-lg text-sm"
+              value={form.quantity}
+              onChange={(e) => setForm({...form, quantity: e.target.value})}
+            />
+            <input 
+              type="date"
+              className="px-3 py-2 border rounded-lg text-sm text-slate-500"
+              value={form.nextDate}
+              onChange={(e) => setForm({...form, nextDate: e.target.value})}
+            />
+            <Button onClick={handleAdd} className="md:col-span-3 justify-center">Guardar Registro</Button>
           </div>
-          <div className="space-y-3">
-              {ev.tareas.map((t, idx) => (
-                <div key={idx} className="flex items-center gap-3">
-                  <button onClick={() => onUpdate({...ev, tareas: ev.tareas.map((tt, i) => i === idx ? {...tt, done: !tt.done} : tt)})}>
-                    {t.done ? <CheckCircle2 size={18} className="text-blue-500" /> : <Circle size={18} className="text-slate-300" />}
-                  </button>
-                  <span className={`text-sm font-semibold flex-1 ${t.done ? 'text-slate-400 line-through' : 'text-slate-600'}`}>{t.text}</span>
-                </div>
-              ))}
-              <div className="flex gap-2">
-                 <input className="flex-1 bg-white p-3 rounded-xl border border-slate-200 text-sm font-medium outline-none" placeholder="Nueva tarea..." value={task} onChange={e => setTask(e.target.value)} onKeyDown={e => {
-                   if(e.key === 'Enter' && task) {
-                     onUpdate({...ev, tareas: [...ev.tareas, { text: task, done: false }]});
-                     setTask('');
-                   }
-                 }}/>
-                 <button onClick={() => { if(task) { onUpdate({...ev, tareas: [...ev.tareas, { text: task, done: false }]}); setTask(''); } }} className="bg-white p-3 border border-slate-200 rounded-xl"><Plus size={18}/></button>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {items.map((item) => (
+          <Card key={item.id} className="relative overflow-hidden group">
+            <div className="absolute top-0 left-0 w-1 h-full bg-orange-400"></div>
+            <div className="flex justify-between items-start">
+              <div>
+                <h4 className="font-bold text-slate-800">{item.name}</h4>
+                <p className="text-xs text-slate-500">Cantidad: {item.quantity}</p>
               </div>
-          </div>
-        </div>
+              <button onClick={() => onDelete(item.id)} className="opacity-0 group-hover:opacity-100 transition text-red-300 hover:text-red-500">
+                <Trash2 size={16} />
+              </button>
+            </div>
+            <div className="mt-4 flex items-center gap-2 text-sm">
+              <RefreshCcw size={14} className="text-orange-500" />
+              <span className="text-slate-600">Próxima renovación:</span>
+              <span className="font-bold text-slate-900">{item.nextDate}</span>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+};
 
-        <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-100 space-y-6">
-          <div className="flex items-center justify-between">
-            <h5 className="font-bold flex items-center gap-2"><DollarSign size={18} className="text-amber-500"/> Gastos / Actividades</h5>
-            <span className="bg-white px-3 py-1 rounded-full text-[10px] font-black text-slate-400 border border-slate-100">
-              ${ev.gastos.reduce((a, b) => a + (parseFloat(b.costo) || 0), 0).toLocaleString()}
-            </span>
-          </div>
-          <div className="space-y-3">
-              {ev.gastos.map((g, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-xl shadow-sm">
-                  <span className="text-sm font-bold text-slate-600">{g.text}</span>
-                  <span className="text-sm font-black text-slate-800">${g.costo.toLocaleString()}</span>
-                </div>
+const ExpressTasksView = ({ items, onAdd, onToggle, onDelete }) => {
+  const [text, setText] = useState("");
+
+  const handleAdd = (e) => {
+    e.preventDefault();
+    if (!text) return;
+    onAdd({
+      label: text,
+      createdAt: new Date().toLocaleDateString(),
+      finishedAt: null,
+      completed: false,
+      id: Date.now()
+    });
+    setText("");
+  };
+
+  return (
+    <div className="space-y-4 pb-20">
+      <Card title="Tareas Express (Día a Día)">
+        <form onSubmit={handleAdd} className="flex gap-2 mb-6">
+          <input 
+            placeholder="Nueva tarea no proyectada..."
+            className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+          <Button onClick={handleAdd} className="bg-purple-600 hover:bg-purple-700">
+            <Plus size={20} />
+          </Button>
+        </form>
+
+        <div className="overflow-hidden bg-white border rounded-xl">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Tarea</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Entrada</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Terminada</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Acción</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-slate-200">
+              {items.map((item) => (
+                <tr key={item.id} className={item.completed ? 'bg-slate-50' : ''}>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center gap-3">
+                      <input 
+                        type="checkbox" 
+                        checked={item.completed} 
+                        onChange={() => onToggle(item.id, !item.completed)}
+                        className="w-4 h-4 text-purple-600 rounded"
+                      />
+                      <span className={item.completed ? 'line-through text-slate-400' : 'text-slate-700'}>
+                        {item.label}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500">{item.createdAt}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500">
+                    {item.completed ? (item.finishedAt || new Date().toLocaleDateString()) : '---'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right">
+                    <button onClick={() => onDelete(item.id)} className="text-slate-300 hover:text-red-500">
+                      <Trash2 size={16} />
+                    </button>
+                  </td>
+                </tr>
               ))}
-              <div className="flex gap-2">
-                 <input className="flex-1 bg-white p-3 rounded-xl border border-slate-200 text-sm font-medium outline-none" placeholder="Actividad..." value={act} onChange={e => setAct(e.target.value)}/>
-                 <input className="w-24 bg-white p-3 rounded-xl border border-slate-200 text-sm font-medium outline-none" placeholder="$" value={price} onChange={e => setPrice(e.target.value)}/>
-                 <button onClick={() => {
-                   if(act && price) {
-                     onUpdate({...ev, gastos: [...ev.gastos, { text: act, costo: parseFloat(price) }]});
-                     setAct(''); setPrice('');
-                   }
-                 }} className="bg-white p-3 border border-slate-200 rounded-xl"><Plus size={18}/></button>
-              </div>
-          </div>
+            </tbody>
+          </table>
+          {items.length === 0 && (
+            <div className="p-8 text-center text-slate-400 italic">No hay tareas pendientes.</div>
+          )}
         </div>
-      </div>
+      </Card>
     </div>
   );
-}
+};
 
-function InsumoCard({ item }) {
-  const daysLeft = 15; // Mock logic
-  const isVencido = daysLeft <= 0;
-  
+// --- APP PRINCIPAL ---
+
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [activeTab, setActiveTab] = useState('funnel');
+  const [funnelData, setFunnelData] = useState({
+    leadsMeta: 100,
+    leadsGenerados: 45,
+    presupuestoTotal: 5000,
+    presupuestoGastado: 2100,
+    awareness: [
+      { label: 'Pixel Configurado', checked: true },
+      { label: 'Campaña de Alcance', checked: false },
+    ],
+    prospeccion: [
+      { label: 'Formularios Listos', checked: true },
+      { label: 'AB Test de Audiencias', checked: false },
+    ],
+    retargeting: [
+      { label: 'Públicos Personalizados', checked: false },
+    ],
+    driveFolderId: ""
+  });
+  const [events, setEvents] = useState([]);
+  const [renewals, setRenewals] = useState([]);
+  const [expressTasks, setExpressTasks] = useState([]);
+
+  // Auth & Sync
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        await signInAnonymously(auth);
+      } catch (err) {
+        console.error("Auth error:", err);
+      }
+    };
+    initAuth();
+
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Listeners Firestore
+  useEffect(() => {
+    if (!user) return;
+
+    // Public Data (Funnel)
+    const funnelRef = doc(db, 'artifacts', appId, 'public', 'data', 'funnel');
+    const unsubFunnel = onSnapshot(funnelRef, (doc) => {
+      if (doc.exists()) setFunnelData(doc.data());
+    }, (err) => console.log("Funnel sync err", err));
+
+    // Collections
+    const createCollectionListener = (name, setter) => {
+      const q = collection(db, 'artifacts', appId, 'public', 'data', name);
+      return onSnapshot(q, (snapshot) => {
+        const items = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+        setter(items);
+      }, (err) => console.log(`${name} sync err`, err));
+    };
+
+    const unsubEvents = createCollectionListener('events', setEvents);
+    const unsubRenewals = createCollectionListener('renewals', setRenewals);
+    const unsubExpress = createCollectionListener('express', setExpressTasks);
+
+    return () => {
+      unsubFunnel();
+      unsubEvents();
+      unsubRenewals();
+      unsubExpress();
+    };
+  }, [user]);
+
+  // Actions
+  const updateFunnel = async (newData) => {
+    if (!user) return;
+    const ref = doc(db, 'artifacts', appId, 'public', 'data', 'funnel');
+    await setDoc(ref, newData);
+  };
+
+  const addItem = async (colName, item) => {
+    if (!user) return;
+    const colRef = collection(db, 'artifacts', appId, 'public', 'data', colName);
+    await addDoc(colRef, item);
+  };
+
+  const toggleItem = async (colName, id, status) => {
+    if (!user) return;
+    const docRef = doc(db, 'artifacts', appId, 'public', 'data', colName, id);
+    const updateData = colName === 'express' 
+      ? { completed: status, finishedAt: status ? new Date().toLocaleDateString() : null }
+      : { completed: !status };
+    await updateDoc(docRef, updateData);
+  };
+
+  const deleteItem = async (colName, id) => {
+    if (!user) return;
+    const docRef = doc(db, 'artifacts', appId, 'public', 'data', colName, id);
+    await deleteDoc(docRef);
+  };
+
+  const renderContent = () => {
+    switch(activeTab) {
+      case 'funnel': return <MetaFunnelView data={funnelData} onUpdate={updateFunnel} />;
+      case 'events': return <EventsView items={events} onAdd={(item) => addItem('events', item)} onToggle={(id, status) => toggleItem('events', id, status)} onDelete={(id) => deleteItem('events', id)} />;
+      case 'renewals': return <RenewalView items={renewals} onAdd={(item) => addItem('renewals', item)} onDelete={(id) => deleteItem('renewals', id)} />;
+      case 'express': return <ExpressTasksView items={expressTasks} onAdd={(item) => addItem('express', item)} onToggle={(id, status) => toggleItem('express', id, status)} onDelete={(id) => deleteItem('express', id)} />;
+      default: return null;
+    }
+  };
+
   return (
-    <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group">
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex gap-3">
-          <div className="w-10 h-10 bg-indigo-50 text-indigo-500 rounded-xl flex items-center justify-center"><Package size={20}/></div>
-          <div>
-            <h5 className="font-bold text-slate-800 leading-tight">{item.nombre}</h5>
-            <p className="text-[10px] font-bold text-slate-400">Material Sucursal</p>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100">
+      {/* Header */}
+      <header className="sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">A</div>
+            <h1 className="text-xl font-black tracking-tight hidden sm:block">AccountMatrix Hub</h1>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-xs font-medium text-slate-600 dark:text-slate-400">
+              <User size={14} />
+              {user?.uid ? 'Administrador' : 'Conectando...'}
+            </div>
           </div>
         </div>
-        <button className="text-slate-200 hover:text-slate-400 transition-colors"><MoreHorizontal size={20}/></button>
-      </div>
-      
-      <div className="space-y-3">
-        <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
-          <Clock size={12}/> {item.sucursal}
-        </div>
-        <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
-          <Calendar size={12}/> Renueva: {new Date(item.lastDate).toLocaleDateString()}
-        </div>
-      </div>
+      </header>
 
-      <div className="mt-6 flex justify-between items-center">
-        <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter ${isVencido ? 'bg-rose-100 text-rose-500' : 'bg-blue-100 text-blue-600'}`}>
-          {isVencido ? 'Vencido' : `${daysLeft}d restantes`}
+      {/* Main Content */}
+      <main className="max-w-5xl mx-auto px-4 pt-6">
+        {renderContent()}
+      </main>
+
+      {/* Navigation (Mobile Friendly Bottom Bar) */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 pb-safe">
+        <div className="max-w-2xl mx-auto px-6 h-16 flex justify-between items-center">
+          <NavItem 
+            icon={<LayoutDashboard />} 
+            label="Embudo" 
+            active={activeTab === 'funnel'} 
+            onClick={() => setActiveTab('funnel')} 
+          />
+          <NavItem 
+            icon={<Calendar />} 
+            label="Eventos" 
+            active={activeTab === 'events'} 
+            onClick={() => setActiveTab('events')} 
+          />
+          <NavItem 
+            icon={<RefreshCcw />} 
+            label="Renovación" 
+            active={activeTab === 'renewals'} 
+            onClick={() => setActiveTab('renewals')} 
+          />
+          <NavItem 
+            icon={<Zap />} 
+            label="Express" 
+            active={activeTab === 'express'} 
+            onClick={() => setActiveTab('express')} 
+          />
         </div>
-        <span className="text-[10px] font-bold text-slate-400">Cada {item.dias}d</span>
-      </div>
+      </nav>
     </div>
   );
 }
 
-function ExpressTask({ task, onToggle }) {
+function NavItem({ icon, label, active, onClick }) {
   return (
-    <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex items-center justify-between group">
-      <div className="flex items-center gap-4">
-        <button onClick={onToggle}>
-          {task.done ? <CheckCircle2 size={24} className="text-emerald-500" /> : <Circle size={24} className="text-slate-200" />}
-        </button>
-        <div>
-          <h5 className={`font-bold transition-all ${task.done ? 'text-slate-300 line-through' : 'text-slate-700'}`}>{task.text}</h5>
-          <div className="flex gap-4 mt-1">
-            <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${task.priority === 'Alta' ? 'bg-rose-50 text-rose-500' : 'bg-slate-50 text-slate-400'}`}>{task.priority}</span>
-            <span className="text-[10px] font-bold text-slate-300">Entrada: {task.entry}</span>
-            {task.exit && <span className="text-[10px] font-bold text-emerald-400">Completada: {task.exit}</span>}
-          </div>
-        </div>
-      </div>
-    </div>
+    <button 
+      onClick={onClick}
+      className={`flex flex-col items-center justify-center gap-1 transition-all ${active ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+    >
+      <span className={`${active ? 'scale-110' : 'scale-100'} transition-transform`}>
+        {React.cloneElement(icon, { size: 22 })}
+      </span>
+      <span className="text-[10px] font-bold uppercase tracking-wider">{label}</span>
+      {active && <div className="absolute top-0 w-8 h-1 bg-blue-600 rounded-b-full shadow-[0_0_10px_rgba(37,99,235,0.5)]" />}
+    </button>
   );
 }
-
-// Icons
-function UsersIcon({color}) { return <div className={`p-2 rounded-xl ${color}`}><Users size={20}/></div> }
-function TargetIcon({color}) { return <div className={`p-2 rounded-xl ${color}`}><Target size={20}/></div> }
-function MoneyIcon({color}) { return <div className={`p-2 rounded-xl ${color}`}><DollarSign size={20}/></div> }
-function ChartIcon({color}) { return <div className={`p-2 rounded-xl ${color}`}><TrendingUp size={20}/></div> }
