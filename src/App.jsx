@@ -32,10 +32,10 @@ import {
 // Firebase
 import { initializeApp } from "firebase/app";
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut, signInWithEmailAndPassword } from "firebase/auth";
-import { getFirestore, doc, setDoc, onSnapshot, updateDoc, getDoc } from "firebase/firestore";
+import { getFirestore, doc, setDoc, onSnapshot, updateDoc, getDoc, collection } from "firebase/firestore";
 
 // --- CONFIG ---
-const DRIVE_API_KEY = "AIzaSyBH8-5rLNM_--UWRMIywOb-m5-UOuzUYUw";
+const DRIVE_API_KEY = ""; // El entorno inyectará la clave necesaria
 const firebaseConfig = {
   apiKey: "AIzaSyCi3nxC2c8Sp4JAs9ylU4uxVagVXToP8HM",
   authDomain: "accountmatrixhub.firebaseapp.com",
@@ -64,7 +64,7 @@ export default function App() {
   // Sucursal seleccionada en Meta
   const [selectedBranch, setSelectedBranch] = useState('Monterrey');
 
-  // Estados de datos
+  // Estados de datos iniciales (se sobrescriben con Firestore)
   const [metaData, setMetaData] = useState({
     branches: {
       'Monterrey': { leads: 145, metaLeads: 200, budget: 15000, spent: 8750 },
@@ -85,10 +85,16 @@ export default function App() {
 
   // Auth Effect
   useEffect(() => {
+    const initAuth = async () => {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await signInWithCustomToken(auth, __initial_auth_token);
+        }
+    };
+    initAuth();
+
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       if (u) {
         setUser(u);
-        // Verificar rol en Firestore si existe, si no, default 'admin' para el primer uso
         const userDoc = await getDoc(doc(db, 'artifacts', APP_ID, 'users', u.uid));
         if (userDoc.exists()) {
           setRole(userDoc.data().role || 'user');
@@ -106,25 +112,29 @@ export default function App() {
   // Sync Firestore
   useEffect(() => {
     if (!user) return;
-    const docRef = doc(db, 'artifacts', APP_ID, 'public', 'main_data');
+    const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'main_data');
     const unsub = onSnapshot(docRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
         if (data.metaData) setMetaData(data.metaData);
-        if (data.eventos) setEventos(data.eventos);
-        if (data.insumos) setInsumos(data.insumos);
-        if (data.express) setExpress(data.express);
+        if (data.eventos) setEventos(data.eventos || []);
+        if (data.insumos) setInsumos(data.insumos || []);
+        if (data.express) setExpress(data.express || []);
       }
     }, (err) => console.error("Firestore Error:", err));
     return () => unsub();
   }, [user]);
 
   const saveData = async (updates) => {
-    if (role !== 'admin') return; // Solo admin guarda
-    const docRef = doc(db, 'artifacts', APP_ID, 'public', 'main_data');
-    await setDoc(docRef, {
-      metaData, eventos, insumos, express, ...updates
-    }, { merge: true });
+    if (role !== 'admin') return; 
+    const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'main_data');
+    try {
+        await setDoc(docRef, {
+            metaData, eventos, insumos, express, ...updates
+        }, { merge: true });
+    } catch (e) {
+        console.error("Error saving data:", e);
+    }
   };
 
   const handleLogin = async (e) => {
@@ -133,7 +143,6 @@ export default function App() {
     setAuthError('');
     try {
       if (!loginEmail || !loginPass) {
-        // Fallback a anónimo si no hay credenciales (para desarrollo rápido)
         await signInAnonymously(auth);
       } else {
         await signInWithEmailAndPassword(auth, loginEmail, loginPass);
@@ -289,7 +298,8 @@ export default function App() {
                 <MetricCard 
                   label="Leads Generados" 
                   value={currentMetrics.leads} 
-                  icon={<UsersIconBox color="bg-blue-50 text-blue-600" />}
+                  icon={<Users className="text-blue-600" size={24}/>}
+                  color="bg-blue-50"
                   editing={isEditingMetrics}
                   onChange={(v) => {
                     const newBranches = { ...metaData.branches, [selectedBranch]: { ...currentMetrics, leads: v } };
@@ -300,7 +310,8 @@ export default function App() {
                   label="Meta de Leads" 
                   value={currentMetrics.metaLeads} 
                   subtext={`${Math.round((currentMetrics.leads/(currentMetrics.metaLeads || 1))*100)}% alcanzado`}
-                  icon={<TargetIconBox color="bg-emerald-50 text-emerald-600" />}
+                  icon={<Target className="text-emerald-600" size={24}/>}
+                  color="bg-emerald-50"
                   editing={isEditingMetrics}
                   onChange={(v) => {
                     const newBranches = { ...metaData.branches, [selectedBranch]: { ...currentMetrics, metaLeads: v } };
@@ -310,7 +321,8 @@ export default function App() {
                 <MetricCard 
                   label="Presupuesto" 
                   value={`$${(currentMetrics.budget || 0).toLocaleString()}`} 
-                  icon={<MoneyIconBox color="bg-indigo-50 text-indigo-600" />}
+                  icon={<DollarSign className="text-indigo-600" size={24}/>}
+                  color="bg-indigo-50"
                   editing={isEditingMetrics}
                   isCurrency
                   onChange={(v) => {
@@ -322,7 +334,8 @@ export default function App() {
                   label="Gasto Actual" 
                   value={`$${(currentMetrics.spent || 0).toLocaleString()}`} 
                   subtext={`${Math.round((currentMetrics.spent/(currentMetrics.budget || 1))*100)}% usado`}
-                  icon={<ChartIconBox color="bg-amber-50 text-amber-600" />}
+                  icon={<Zap className="text-amber-600" size={24}/>}
+                  color="bg-amber-50"
                   editing={isEditingMetrics}
                   isCurrency
                   onChange={(v) => {
@@ -388,15 +401,6 @@ export default function App() {
                       saveData({ metaData: newMeta });
                     }}
                   />
-                  <DriveCarousel 
-                    title="Artes de Prospección" 
-                    folderId={metaData.drive.prospeccion} 
-                    onLink={(id) => {
-                      const newMeta = {...metaData, drive: {...metaData.drive, prospeccion: id}};
-                      setMetaData(newMeta);
-                      saveData({ metaData: newMeta });
-                    }}
-                  />
                 </div>
               </div>
             </div>
@@ -410,39 +414,50 @@ export default function App() {
                   <h2 className="text-4xl font-black tracking-tight text-slate-800">Eventos</h2>
                   <p className="text-slate-400 mt-2 font-medium">Planificación logística y presupuestaria</p>
                 </div>
-                {role === 'admin' && <NewEventForm onAdd={(ev) => {
-                  const newEventos = [ev, ...eventos];
-                  setEventos(newEventos);
-                  saveData({ eventos: newEventos });
-                }} />}
+                {role === 'admin' && (
+                   <button 
+                    onClick={() => {
+                        const nombre = prompt('Nombre del Evento:');
+                        if (nombre) {
+                            const newEventos = [{ id: Date.now(), title: nombre, date: new Date().toLocaleDateString(), budget: 0, status: 'Planeación' }, ...eventos];
+                            setEventos(newEventos);
+                            saveData({ eventos: newEventos });
+                        }
+                    }}
+                    className="flex items-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-[1.5rem] font-bold shadow-xl shadow-blue-200"
+                   >
+                     <Plus size={20}/> Nuevo Evento
+                   </button>
+                )}
               </header>
 
-              <div className="grid grid-cols-1 gap-12">
-                {eventos.length === 0 ? (
-                  <div className="py-32 text-center border-2 border-dashed border-slate-200 rounded-[3rem] bg-white/50">
-                    <Calendar size={64} className="mx-auto text-slate-200 mb-6" />
-                    <p className="text-xl font-bold text-slate-400">No hay eventos activos</p>
-                    <p className="text-sm text-slate-300">Crea uno nuevo para comenzar la planificación</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {eventos.map(ev => (
+                  <div key={ev.id} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm relative group">
+                    <div className="flex justify-between items-start mb-6">
+                        <div>
+                            <h4 className="text-xl font-black text-slate-800">{ev.title}</h4>
+                            <p className="text-sm font-bold text-slate-400">{ev.date}</p>
+                        </div>
+                        <span className="px-4 py-1.5 bg-blue-50 text-blue-600 text-[10px] font-black uppercase rounded-full tracking-widest">{ev.status}</span>
+                    </div>
+                    <div className="flex gap-4">
+                        <div className="flex-1 bg-slate-50 p-4 rounded-2xl">
+                             <p className="text-[10px] font-black text-slate-400 uppercase">Presupuesto</p>
+                             <p className="text-lg font-black text-slate-800">${(ev.budget || 0).toLocaleString()}</p>
+                        </div>
+                    </div>
+                    {role === 'admin' && (
+                         <button onClick={() => {
+                            const newEventos = eventos.filter(e => e.id !== ev.id);
+                            setEventos(newEventos);
+                            saveData({ eventos: newEventos });
+                         }} className="absolute top-8 right-8 text-slate-200 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all">
+                             <Trash2 size={18}/>
+                         </button>
+                    )}
                   </div>
-                ) : (
-                  eventos.map(ev => (
-                    <EventCard 
-                      key={ev.id} 
-                      ev={ev} 
-                      role={role}
-                      onUpdate={(updated) => {
-                        const newEventos = eventos.map(e => e.id === ev.id ? updated : e);
-                        setEventos(newEventos);
-                        saveData({ eventos: newEventos });
-                      }}
-                      onDelete={() => {
-                        const newEventos = eventos.filter(e => e.id !== ev.id);
-                        setEventos(newEventos);
-                        saveData({ eventos: newEventos });
-                      }}
-                    />
-                  ))
-                )}
+                ))}
               </div>
             </div>
           )}
@@ -474,21 +489,23 @@ export default function App() {
               </header>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {insumos.map(ins => (
-                  <InsumoCard 
-                    key={ins.id} 
-                    item={ins} 
-                    role={role}
-                    onDelete={() => {
-                      const newIns = insumos.filter(i => i.id !== ins.id);
-                      setInsumos(newIns);
-                      saveData({ insumos: newIns });
-                    }}
-                    onEdit={(newData) => {
-                      const newIns = insumos.map(i => i.id === ins.id ? { ...i, ...newData } : i);
-                      setInsumos(newIns);
-                      saveData({ insumos: newIns });
-                    }}
-                  />
+                  <div key={ins.id} className="bg-white p-7 rounded-[2rem] border border-slate-100 shadow-sm relative group">
+                    <div className="flex items-start justify-between mb-4">
+                        <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl"><Package size={20}/></div>
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{ins.sucursal}</span>
+                    </div>
+                    <h4 className="text-lg font-black text-slate-800 mb-1">{ins.nombre}</h4>
+                    <p className="text-xs font-bold text-slate-400 mb-6 flex items-center gap-2"><Clock size={12}/> Renovación cada {ins.dias} días</p>
+                    {role === 'admin' && (
+                        <button onClick={() => {
+                            const newIns = insumos.filter(i => i.id !== ins.id);
+                            setInsumos(newIns);
+                            saveData({ insumos: newIns });
+                        }} className="absolute top-7 right-7 opacity-0 group-hover:opacity-100 text-slate-200 hover:text-rose-500 transition-all">
+                            <X size={18}/>
+                        </button>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
@@ -521,7 +538,7 @@ export default function App() {
                       if(e.key === 'Enter') {
                         const input = e.currentTarget;
                         if (!input.value) return;
-                        const newExp = [{ id: Date.now(), text: input.value, entry: new Date().toLocaleDateString('es-ES', {day:'2-digit', month:'short'}), done: false, priority: 'Media' }, ...express];
+                        const newExp = [{ id: Date.now(), text: input.value, entry: new Date().toLocaleDateString('es-ES', {day:'2-digit', month:'short'}), done: false }, ...express];
                         setExpress(newExp);
                         saveData({ express: newExp });
                         input.value = '';
@@ -531,7 +548,7 @@ export default function App() {
                   <button onClick={() => {
                       const input = document.getElementById('newExpress');
                       if(!input.value) return;
-                      const newExp = [{ id: Date.now(), text: input.value, entry: new Date().toLocaleDateString('es-ES', {day:'2-digit', month:'short'}), done: false, priority: 'Media' }, ...express];
+                      const newExp = [{ id: Date.now(), text: input.value, entry: new Date().toLocaleDateString('es-ES', {day:'2-digit', month:'short'}), done: false }, ...express];
                       setExpress(newExp);
                       saveData({ express: newExp });
                       input.value = '';
@@ -540,26 +557,28 @@ export default function App() {
 
                 <div className="space-y-4">
                   {express.map(task => (
-                    <ExpressTask 
-                      key={task.id} 
-                      task={task} 
-                      role={role}
-                      onUpdate={(data) => {
-                        const newExp = express.map(t => t.id === task.id ? {...t, ...data} : t);
-                        setExpress(newExp);
-                        saveData({ express: newExp });
-                      }}
-                      onToggle={() => {
-                        const newExp = express.map(t => t.id === task.id ? {...t, done: !t.done, exit: !t.done ? new Date().toLocaleDateString('es-ES', {day:'2-digit', month:'short'}) : null} : t);
-                        setExpress(newExp);
-                        saveData({ express: newExp });
-                      }}
-                      onDelete={() => {
-                        const newExp = express.filter(t => t.id !== task.id);
-                        setExpress(newExp);
-                        saveData({ express: newExp });
-                      }}
-                    />
+                    <div key={task.id} className="flex items-center gap-6 p-5 hover:bg-slate-50 rounded-3xl transition-all group border border-transparent hover:border-slate-100">
+                        <button onClick={() => {
+                            const newExp = express.map(t => t.id === task.id ? {...t, done: !t.done} : t);
+                            setExpress(newExp);
+                            saveData({ express: newExp });
+                        }}>
+                             {task.done ? <CheckCircle2 size={24} className="text-emerald-500" /> : <Circle size={24} className="text-slate-200" />}
+                        </button>
+                        <div className="flex-1">
+                            <p className={`font-black text-slate-700 ${task.done ? 'line-through text-slate-300' : ''}`}>{task.text}</p>
+                            <span className="text-[10px] font-bold text-slate-400">{task.entry}</span>
+                        </div>
+                        {role === 'admin' && (
+                             <button onClick={() => {
+                                const newExp = express.filter(t => t.id !== task.id);
+                                setExpress(newExp);
+                                saveData({ express: newExp });
+                             }} className="opacity-0 group-hover:opacity-100 text-slate-200 hover:text-rose-500 transition-all">
+                                 <Trash2 size={18}/>
+                             </button>
+                        )}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -579,7 +598,7 @@ export default function App() {
   );
 }
 
-// --- COMPONENTS ---
+// --- SUB-COMPONENTS ---
 
 function NavItem({ active, icon, label, onClick }) {
   return (
@@ -600,7 +619,7 @@ function MobileIcon({ active, icon, onClick }) {
   );
 }
 
-function MetricCard({ label, value, subtext, icon, editing, onChange }) {
+function MetricCard({ label, value, subtext, icon, color, editing, onChange }) {
   return (
     <div className="bg-white p-7 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col justify-between h-full group">
       <div className="flex justify-between items-start mb-6">
@@ -610,14 +629,14 @@ function MetricCard({ label, value, subtext, icon, editing, onChange }) {
             <input 
               type="number" 
               className="w-full text-2xl font-black text-slate-800 border-b-2 border-blue-500 outline-none bg-transparent" 
-              defaultValue={typeof value === 'string' ? value.replace(/[^0-9]/g, '') : value} 
+              defaultValue={typeof value === 'string' ? value.replace(/[^0-9.]/g, '') : value} 
               onBlur={e => onChange(parseFloat(e.target.value) || 0)}
             />
           ) : (
             <div className="text-3xl font-black text-slate-800 tracking-tight">{value}</div>
           )}
         </div>
-        <div className="p-3 rounded-2xl group-hover:scale-110 transition-all">{icon}</div>
+        <div className={`p-3 rounded-2xl group-hover:scale-110 transition-all ${color}`}>{icon}</div>
       </div>
       {subtext && (
         <div className="pt-4 border-t border-slate-50">
@@ -664,7 +683,7 @@ function ChecklistCol({ title, items, color, onUpdate, role }) {
           <input 
             value={input}
             onChange={e => setInput(e.target.value)}
-            placeholder="Añadir tarea..." 
+            placeholder="Añadir..." 
             className="flex-1 text-xs font-bold p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-1 focus:ring-blue-500"
             onKeyDown={e => {
               if(e.key === 'Enter' && input) {
@@ -686,365 +705,45 @@ function ChecklistCol({ title, items, color, onUpdate, role }) {
 }
 
 function DriveCarousel({ title, folderId, onLink }) {
-  const [files, setFiles] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [url, setUrl] = useState(folderId || '');
-
-  useEffect(() => {
-    if(folderId) {
-      setLoading(true);
-      fetch(`https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents&fields=files(id,name,thumbnailLink,webContentLink)&key=${DRIVE_API_KEY}`)
-        .then(res => res.json())
-        .then(data => {
-          if(data.files) setFiles(data.files);
-          setLoading(false);
-        }).catch(() => setLoading(false));
-    }
-  }, [folderId]);
+  const [isEditing, setIsEditing] = useState(!folderId);
 
   return (
-    <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-8">
-      <div className="flex items-center justify-between">
-        <h4 className="font-black text-xl text-slate-800">{title}</h4>
-        <FolderOpen size={24} className="text-slate-200"/>
-      </div>
-      <div className="flex gap-3">
-        <input 
-          className="flex-1 p-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold text-slate-600 outline-none focus:ring-2 focus:ring-blue-500" 
-          placeholder="ID de la carpeta de Drive"
-          value={url}
-          onChange={e => setUrl(e.target.value)}
-        />
-        <button 
-          onClick={() => {
-            const id = url.includes('folders/') ? url.split('folders/')[1].split('?')[0] : url;
-            onLink(id);
-          }}
-          className="bg-blue-600 text-white px-8 py-4 rounded-2xl text-xs font-black shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all"
-        >
-          CONECTAR
+    <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
+      <div className="flex justify-between items-center mb-6">
+        <h4 className="font-black text-xl text-slate-800 flex items-center gap-3">
+          <ImageIcon className="text-blue-600" /> {title}
+        </h4>
+        <button onClick={() => setIsEditing(!isEditing)} className="p-2 text-slate-400 hover:text-blue-600">
+           {isEditing ? <X size={20}/> : <Edit2 size={20}/>}
         </button>
       </div>
       
-      {loading ? (
-        <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-blue-500" size={32} /></div>
-      ) : files.length > 0 ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
-          {files.map(f => (
-            <div key={f.id} className="group bg-slate-50 rounded-[1.5rem] overflow-hidden relative aspect-square border border-slate-100">
-              {f.thumbnailLink ? <img src={f.thumbnailLink} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-500" /> : <div className="w-full h-full flex items-center justify-center"><ImageIcon className="text-slate-200" size={32}/></div>}
-              <a href={f.webContentLink} target="_blank" className="absolute inset-0 bg-blue-600/90 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-all duration-300 p-4 text-center">
-                <ExternalLink className="text-white mb-2" size={24} />
-                <span className="text-[10px] text-white font-bold truncate w-full">{f.name}</span>
-              </a>
-            </div>
-          ))}
-        </div>
+      {isEditing ? (
+          <div className="flex gap-4">
+              <input 
+                type="text" 
+                placeholder="ID de la carpeta de Drive" 
+                value={url}
+                onChange={e => setUrl(e.target.value)}
+                className="flex-1 p-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold"
+              />
+              <button onClick={() => {
+                  onLink(url);
+                  setIsEditing(false);
+              }} className="bg-blue-600 text-white px-6 rounded-2xl font-black text-sm">VINCULAR</button>
+          </div>
       ) : (
-        <div className="py-20 border-2 border-dashed border-slate-100 rounded-[2rem] bg-slate-50/50 flex flex-col items-center justify-center text-slate-300">
-          <FolderOpen size={48} className="mb-4 opacity-10" />
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 text-center px-10">Vincula una carpeta de Google Drive para visualizar tus artes</p>
-        </div>
+          <div className="flex items-center gap-4 p-6 bg-blue-50 rounded-3xl border border-blue-100 border-dashed">
+              <FolderOpen size={40} className="text-blue-400" />
+              <div>
+                  <p className="font-black text-blue-800">Carpeta vinculada</p>
+                  <a href={`https://drive.google.com/drive/folders/${folderId}`} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-500 flex items-center gap-1 hover:underline">
+                      Ver en Google Drive <ExternalLink size={12}/>
+                  </a>
+              </div>
+          </div>
       )}
     </div>
   );
 }
-
-function NewEventForm({ onAdd }) {
-  const [show, setShow] = useState(false);
-  const [nombre, setNombre] = useState('');
-  const [fecha, setFecha] = useState('');
-
-  if (!show) return (
-    <button onClick={() => setShow(true)} className="flex items-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all">
-      <Plus size={20}/> NUEVO EVENTO
-    </button>
-  );
-
-  return (
-    <div className="flex gap-3 bg-white p-3 border border-slate-200 rounded-3xl shadow-xl animate-in zoom-in-95 duration-200">
-      <input type="text" placeholder="Nombre..." className="p-4 bg-slate-50 rounded-2xl text-xs font-bold outline-none" value={nombre} onChange={e => setNombre(e.target.value)} />
-      <input type="date" className="p-4 bg-slate-50 rounded-2xl text-xs font-bold outline-none" value={fecha} onChange={e => setFecha(e.target.value)} />
-      <button onClick={() => {
-        if(nombre && fecha) {
-          onAdd({ id: Date.now(), nombre, fecha, tareas: [], gastos: [] });
-          setNombre(''); setFecha(''); setShow(false);
-        }
-      }} className="bg-emerald-500 text-white px-6 rounded-2xl font-black text-xs hover:bg-emerald-600 transition-all">CREAR</button>
-      <button onClick={() => setShow(false)} className="p-4 text-slate-400"><X size={18}/></button>
-    </div>
-  );
-}
-
-function EventCard({ ev, onUpdate, onDelete, role }) {
-  const [task, setTask] = useState('');
-  const [act, setAct] = useState('');
-  const [price, setPrice] = useState('');
-
-  const totalSpent = ev.gastos.reduce((a, b) => a + (parseFloat(b.costo) || 0), 0);
-
-  return (
-    <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm space-y-12 relative group">
-      <div className="flex justify-between items-start">
-        <div className="flex items-center gap-6">
-          <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-[1.5rem] flex items-center justify-center shadow-sm"><Calendar size={32}/></div>
-          <div>
-            <h4 className="text-3xl font-black text-slate-800 tracking-tight">{ev.nombre}</h4>
-            <div className="flex items-center gap-3 mt-1">
-               <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{ev.fecha}</p>
-               <span className="w-1 h-1 bg-slate-200 rounded-full"></span>
-               <p className="text-xs font-black text-blue-600 uppercase tracking-widest">${totalSpent.toLocaleString()} Invertidos</p>
-            </div>
-          </div>
-        </div>
-        {role === 'admin' && (
-          <button onClick={onDelete} className="p-3 text-slate-200 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all">
-            <Trash2 size={24}/>
-          </button>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-        {/* Tareas del Evento */}
-        <div className="bg-slate-50/50 p-8 rounded-[2.5rem] border border-slate-100 space-y-8">
-          <div className="flex items-center justify-between">
-            <h5 className="font-black text-lg text-slate-800 flex items-center gap-3">
-              <CheckCircle2 size={20} className="text-emerald-500"/> Plan de Tareas
-            </h5>
-            <span className="bg-white px-4 py-1.5 rounded-full text-[10px] font-black text-slate-400 border border-slate-100">
-              {ev.tareas.filter(t => t.done).length}/{ev.tareas.length}
-            </span>
-          </div>
-          <div className="space-y-4">
-             {ev.tareas.map((t, idx) => (
-               <div key={idx} className="flex items-center justify-between group/item">
-                 <div className="flex items-center gap-4">
-                    <button 
-                      disabled={role !== 'admin'}
-                      onClick={() => onUpdate({...ev, tareas: ev.tareas.map((tt, i) => i === idx ? {...tt, done: !tt.done} : tt)})}
-                    >
-                      {t.done ? <CheckCircle2 size={22} className="text-emerald-500" /> : <Circle size={22} className="text-slate-200" />}
-                    </button>
-                    <span className={`text-sm font-bold ${t.done ? 'text-slate-300 line-through' : 'text-slate-600'}`}>{t.text}</span>
-                 </div>
-                 {role === 'admin' && (
-                   <button onClick={() => onUpdate({...ev, tareas: ev.tareas.filter((_, i) => i !== idx)})} className="opacity-0 group-hover/item:opacity-100 text-slate-300 hover:text-rose-500 transition-all">
-                     <X size={14}/>
-                   </button>
-                 )}
-               </div>
-             ))}
-             {role === 'admin' && (
-               <div className="flex gap-3 pt-4">
-                  <input className="flex-1 bg-white p-4 rounded-2xl border border-slate-100 text-xs font-bold outline-none shadow-sm" placeholder="Nueva tarea logistica..." value={task} onChange={e => setTask(e.target.value)} onKeyDown={e => {
-                    if(e.key === 'Enter' && task) {
-                      onUpdate({...ev, tareas: [...ev.tareas, { text: task, done: false }]});
-                      setTask('');
-                    }
-                  }}/>
-                  <button onClick={() => { if(task) { onUpdate({...ev, tareas: [...ev.tareas, { text: task, done: false }]}); setTask(''); } }} className="bg-white p-4 border border-slate-100 rounded-2xl text-slate-400 hover:text-blue-500 shadow-sm"><Plus size={20}/></button>
-               </div>
-             )}
-          </div>
-        </div>
-
-        {/* Gastos del Evento */}
-        <div className="bg-slate-50/50 p-8 rounded-[2.5rem] border border-slate-100 space-y-8">
-          <div className="flex items-center justify-between">
-            <h5 className="font-black text-lg text-slate-800 flex items-center gap-3">
-              <DollarSign size={20} className="text-amber-500"/> Inversión Requerida
-            </h5>
-            <span className="bg-white px-4 py-1.5 rounded-full text-[10px] font-black text-slate-700 border border-slate-100">
-              Total: ${totalSpent.toLocaleString()}
-            </span>
-          </div>
-          <div className="space-y-4">
-             {ev.gastos.map((g, idx) => (
-               <div key={idx} className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-2xl shadow-sm group/item">
-                 <div className="flex flex-col">
-                    <span className="text-sm font-black text-slate-800">{g.text}</span>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Actividad</span>
-                 </div>
-                 <div className="flex items-center gap-4">
-                    <span className="text-sm font-black text-emerald-600">${g.costo.toLocaleString()}</span>
-                    {role === 'admin' && (
-                      <button onClick={() => onUpdate({...ev, gastos: ev.gastos.filter((_, i) => i !== idx)})} className="opacity-0 group-hover/item:opacity-100 text-slate-300 hover:text-rose-500 transition-all">
-                        <X size={14}/>
-                      </button>
-                    )}
-                 </div>
-               </div>
-             ))}
-             {role === 'admin' && (
-               <div className="flex flex-col sm:flex-row gap-3 pt-4">
-                  <input className="flex-1 bg-white p-4 rounded-2xl border border-slate-100 text-xs font-bold outline-none shadow-sm" placeholder="Actividad/Item..." value={act} onChange={e => setAct(e.target.value)}/>
-                  <input className="w-full sm:w-28 bg-white p-4 rounded-2xl border border-slate-100 text-xs font-bold outline-none shadow-sm" placeholder="$ 0.00" value={price} onChange={e => setPrice(e.target.value)}/>
-                  <button onClick={() => {
-                    if(act && price) {
-                      onUpdate({...ev, gastos: [...ev.gastos, { text: act, costo: parseFloat(price) }]});
-                      setAct(''); setPrice('');
-                    }
-                  }} className="bg-emerald-500 p-4 rounded-2xl text-white shadow-lg shadow-emerald-100 hover:bg-emerald-600 transition-all"><Plus size={20}/></button>
-               </div>
-             )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function InsumoCard({ item, role, onDelete, onEdit }) {
-  const [showOptions, setShowOptions] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  
-  const [editName, setEditName] = useState(item.nombre);
-  const [editSuc, setEditSuc] = useState(item.sucursal);
-
-  const daysLeft = 15; // Placeholder
-  const isVencido = daysLeft <= 0;
-  
-  return (
-    <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-xl transition-all h-full flex flex-col justify-between">
-      <div className="flex items-start justify-between mb-8">
-        <div className="flex gap-5">
-          <div className="w-14 h-14 bg-indigo-50 text-indigo-500 rounded-2xl flex items-center justify-center shadow-sm"><Package size={28}/></div>
-          <div className="space-y-1">
-            {isEditing ? (
-              <input value={editName} onChange={e => setEditName(e.target.value)} className="font-black text-slate-800 leading-tight border-b border-blue-500 outline-none w-full" />
-            ) : (
-              <h5 className="font-black text-xl text-slate-800 leading-tight">{item.nombre}</h5>
-            )}
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Material Impreso</p>
-          </div>
-        </div>
-        
-        {role === 'admin' && (
-          <div className="relative">
-            <button 
-              onClick={() => setShowOptions(!showOptions)}
-              className="p-2 text-slate-200 hover:text-slate-400 transition-colors"
-            >
-              <MoreHorizontal size={24}/>
-            </button>
-            {showOptions && (
-              <div className="absolute right-0 top-10 w-40 bg-white border border-slate-100 rounded-2xl shadow-2xl z-20 py-2 animate-in slide-in-from-top-2 duration-200">
-                <button onClick={() => { setIsEditing(true); setShowOptions(false); }} className="w-full text-left px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-2">
-                  <Edit2 size={14}/> Editar Material
-                </button>
-                <button onClick={() => { if(confirm('¿Eliminar material?')) onDelete(); }} className="w-full text-left px-4 py-2 text-xs font-bold text-rose-500 hover:bg-rose-50 flex items-center gap-2">
-                  <Trash2 size={14}/> Eliminar
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-      
-      <div className="space-y-5 flex-1">
-        <div className="flex items-center gap-3 text-xs font-bold text-slate-500">
-          <Clock size={16} className="text-slate-300"/> 
-          {isEditing ? (
-            <input value={editSuc} onChange={e => setEditSuc(e.target.value)} className="border-b border-blue-500 outline-none" />
-          ) : (
-            <span>Sucursal: <span className="text-slate-800 font-black ml-1">{item.sucursal}</span></span>
-          )}
-        </div>
-        <div className="flex items-center gap-3 text-xs font-bold text-slate-500">
-          <Calendar size={16} className="text-slate-300"/> 
-          <span>Renueva el: <span className="text-slate-800 font-black ml-1">19 abr 2026</span></span>
-        </div>
-      </div>
-
-      <div className="mt-10 flex justify-between items-center pt-8 border-t border-slate-50">
-        <div className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest ${isVencido ? 'bg-rose-100 text-rose-500' : 'bg-blue-50 text-blue-600'}`}>
-          {isVencido ? 'Vencido' : `${daysLeft}d restantes`}
-        </div>
-        
-        {isEditing ? (
-          <button onClick={() => { onEdit({ nombre: editName, sucursal: editSuc }); setIsEditing(false); }} className="text-xs font-black text-emerald-500 underline">Guardar</button>
-        ) : (
-          <span className="text-[10px] font-black text-slate-300 uppercase">Cada {item.dias} días</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ExpressTask({ task, onToggle, onUpdate, onDelete, role }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editText, setEditText] = useState(task.text);
-
-  const priorities = {
-    'Alta': 'bg-rose-100 text-rose-600',
-    'Media': 'bg-amber-100 text-amber-600',
-    'Baja': 'bg-emerald-100 text-emerald-600'
-  };
-
-  return (
-    <div className={`bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group ${task.done ? 'opacity-60 grayscale-[0.5]' : 'hover:shadow-md'}`}>
-      <div className="flex items-center gap-6 flex-1 w-full">
-        <button 
-          disabled={role !== 'admin'}
-          onClick={onToggle} 
-          className="active:scale-90 transition-all shrink-0"
-        >
-          {task.done ? <CheckCircle2 size={26} className="text-emerald-500" /> : <Circle size={26} className="text-slate-200" />}
-        </button>
-        
-        <div className="flex-1 space-y-1">
-          {isEditing ? (
-            <input 
-              value={editText} 
-              onChange={e => setEditText(e.target.value)}
-              onBlur={() => { onUpdate({ text: editText }); setIsEditing(false); }}
-              className="w-full font-bold text-slate-800 border-b-2 border-blue-500 outline-none"
-              autoFocus
-            />
-          ) : (
-            <h6 
-              className={`font-bold text-slate-700 leading-tight ${task.done ? 'line-through text-slate-400' : ''}`}
-              onDoubleClick={() => role === 'admin' && setIsEditing(true)}
-            >
-              {task.text}
-            </h6>
-          )}
-          <div className="flex items-center gap-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-            <span className="flex items-center gap-1"><Plus size={10}/> {task.entry}</span>
-            {task.exit && <span className="flex items-center gap-1 text-emerald-500"><CheckCircle2 size={10}/> {task.exit}</span>}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto pt-4 sm:pt-0 border-t sm:border-0 border-slate-50">
-        <div className="relative group/priority">
-          <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter cursor-pointer ${priorities[task.priority || 'Media']}`}>
-            {task.priority || 'Media'}
-          </div>
-          {role === 'admin' && (
-            <div className="absolute top-full left-0 mt-2 bg-white border border-slate-100 rounded-xl shadow-xl z-20 hidden group-hover/priority:block p-1">
-              {['Alta', 'Media', 'Baja'].map(p => (
-                <button key={p} onClick={() => onUpdate({ priority: p })} className={`block w-full text-left px-4 py-1.5 rounded-lg text-[10px] font-black hover:bg-slate-50 ${priorities[p]}`}>
-                  {p}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {role === 'admin' && (
-          <div className="flex items-center gap-1">
-             <button onClick={() => setIsEditing(true)} className="p-2 text-slate-300 hover:text-blue-500 transition-all opacity-0 group-hover:opacity-100"><Edit2 size={16}/></button>
-             <button onClick={onDelete} className="p-2 text-slate-300 hover:text-rose-500 transition-all opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Icon Helpers
-const UsersIconBox = ({ color }) => <div className={`p-4 rounded-[1.2rem] ${color}`}><Users size={24}/></div>;
-const TargetIconBox = ({ color }) => <div className={`p-4 rounded-[1.2rem] ${color}`}><Target size={24}/></div>;
-const MoneyIconBox = ({ color }) => <div className={`p-4 rounded-[1.2rem] ${color}`}><DollarSign size={24}/></div>;
-const ChartIconBox = ({ color }) => <div className={`p-4 rounded-[1.2rem] ${color}`}><Zap size={24}/></div>;
