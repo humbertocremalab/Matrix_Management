@@ -166,7 +166,6 @@
                     
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-8" id="meta-checklist-area"></div>
 
-                    <!-- VISUALIZADOR DE ARTES CON API KEY GENERAL -->
                     <div class="flex items-center gap-4 mt-12">
                         <div class="h-[2px] flex-1 bg-slate-100"></div>
                         <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] italic">Visualizador Real-Time de Artes</h3>
@@ -184,7 +183,6 @@
                     </div>
                     
                     <div id="drive-visualization-area" class="space-y-20">
-                        <!-- Las secciones AWA, PRO, RET se inyectan aquí -->
                     </div>
                 </div>
             </div>
@@ -195,7 +193,7 @@
                     <h2 class="font-black text-2xl uppercase tracking-tighter italic">Planificación de Eventos</h2>
                     <button onclick="addEvent()" class="bg-blue-600 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase">+ Crear Nuevo Evento</button>
                 </div>
-                <div id="events-container" class="space-y-6"></div>
+                <div id="events-container" class="grid grid-cols-1 lg:grid-cols-2 gap-8"></div>
             </div>
 
             <!-- TAB EXPRESS -->
@@ -360,6 +358,9 @@
             if(!b.driveFolders) b.driveFolders = { awa:[], pro:[], ret:[] };
             if(!b.metaMaterials) b.metaMaterials = { awa:[], pro:[], ret:[] };
             if(!b.apiKey) b.apiKey = '';
+            if(!b.events) b.events = [];
+            if(!b.express) b.express = [];
+            if(!b.insumos) b.insumos = [];
 
             document.getElementById('label-sucursal').innerText = b.label;
             document.getElementById('insumos-branch').innerText = b.label;
@@ -441,18 +442,15 @@
                         <span class="bg-blue-600 text-white text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest">${key} Stage</span>
                         <h4 class="text-2xl font-black text-slate-800 tracking-tighter uppercase italic">${label}</h4>
                     </div>
-                    
                     <div class="space-y-12">
                         ${(b.driveFolders[key] || []).length === 0 ? `
-                            <div class="empty-art-state italic text-[10px] font-bold uppercase tracking-widest">No hay carpetas vinculadas en este nivel</div>
+                            <div class="empty-art-state italic text-[10px] font-bold uppercase tracking-widest">No hay carpetas vinculadas</div>
                         ` : (b.driveFolders[key] || []).map((folder, fIdx) => `
                             <div class="folder-group">
                                 <div class="flex justify-between items-end mb-4 px-2">
                                     <div>
                                         <h5 class="text-sm font-black text-slate-800 uppercase italic">${folder.name}</h5>
-                                        <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
-                                            Viendo ${folder.count} artes • <a href="${folder.url}" target="_blank" class="text-blue-500">Abrir Drive</a>
-                                        </p>
+                                        <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Viendo ${folder.count} artes • <a href="${folder.url}" target="_blank" class="text-blue-500">Drive</a></p>
                                     </div>
                                     <button onclick="removeDriveFolder('${key}', ${fIdx})" class="text-[9px] font-black text-red-400 uppercase tracking-widest">Eliminar</button>
                                 </div>
@@ -475,91 +473,118 @@
                                 </div>
                             </div>
                         `).join('')}
-
                         <div class="bg-white border-2 border-dashed border-slate-200 rounded-[2rem] p-8">
                              <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                                 <input type="text" id="new-folder-name-${key}" placeholder="Nombre Campaña" class="bg-slate-50 border-none rounded-xl px-4 py-3 text-xs font-bold outline-none">
                                 <input type="number" id="new-folder-count-${key}" value="6" placeholder="Cant. Artes" class="bg-slate-50 border-none rounded-xl px-4 py-3 text-xs font-bold outline-none">
                                 <input type="text" id="new-folder-url-${key}" placeholder="URL Carpeta Drive" class="bg-slate-50 border-none rounded-xl px-4 py-3 text-xs font-bold outline-none">
                              </div>
-                             <button onclick="addDriveFolder('${key}')" class="w-full bg-slate-900 text-white font-black py-4 rounded-xl text-[10px] uppercase tracking-widest hover:bg-black transition-all italic">Vincular a ${label}</button>
+                             <button onclick="addDriveFolder('${key}')" class="w-full bg-slate-900 text-white font-black py-4 rounded-xl text-[10px] uppercase tracking-widest">Vincular Nueva Carpeta</button>
                         </div>
                     </div>
                 </div>
             `).join('');
         }
 
-        window.addDriveFolder = (stage) => {
-            const name = document.getElementById(`new-folder-name-${stage}`).value;
-            const count = parseInt(document.getElementById(`new-folder-count-${stage}`).value);
-            const url = document.getElementById(`new-folder-url-${stage}`).value;
-            if(name && count > 0 && url) {
-                data[currentBranch].driveFolders[stage].push({ name, count, url });
-                renderDriveVisualizer();
-                saveAll();
-            }
+        window.addDriveFolder = (key) => {
+            const name = document.getElementById(`new-folder-name-${key}`).value;
+            const count = parseInt(document.getElementById(`new-folder-count-${key}`).value) || 0;
+            const url = document.getElementById(`new-folder-url-${key}`).value;
+            if(!name || !url) return;
+            data[currentBranch].driveFolders[key].push({ name, count, url });
+            renderDriveVisualizer();
+            saveAll();
         };
 
-        window.removeDriveFolder = (stage, idx) => {
-            data[currentBranch].driveFolders[stage].splice(idx, 1);
+        window.removeDriveFolder = (key, idx) => {
+            data[currentBranch].driveFolders[key].splice(idx, 1);
             renderDriveVisualizer();
             saveAll();
         };
 
         window.scrollCarousel = (id, amount) => {
-            const track = document.getElementById('track-' + id);
-            track.scrollBy({ left: amount, behavior: 'smooth' });
+            const track = document.getElementById(`track-${id}`);
+            track.scrollLeft += amount;
         };
 
         // --- EVENTOS ---
         function renderEvents() {
             const b = data[currentBranch];
-            const cont = document.getElementById('events-container');
-            if(!b.events) b.events = [];
-            cont.innerHTML = b.events.map((ev, ei) => `
-                <div class="section-card border-none bg-white">
-                    <div class="flex justify-between items-center mb-6">
-                         <input type="text" value="${ev.name}" onchange="editEventName(${ei}, this.value)" class="text-xl font-black uppercase italic outline-none text-slate-800">
-                         <button onclick="removeEvent(${ei})" class="text-red-400 font-bold text-[10px] uppercase tracking-widest">Eliminar Evento</button>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div>
-                            <div class="flex justify-between items-center mb-4">
-                                <h4 class="text-[9px] font-black text-blue-500 uppercase tracking-widest italic">Kit Digital</h4>
-                                <button onclick="addEvTask(${ei}, 'digital')" class="text-[9px] font-black text-slate-400">+</button>
-                            </div>
-                            <div class="space-y-2">
-                                ${ev.digital.map((t, ti) => `
-                                    <div class="flex items-center gap-2">
-                                        <input type="checkbox" ${t.d ? 'checked' : ''} onchange="toggleEvTask(${ei}, 'digital', ${ti})" class="w-3 h-3">
-                                        <input type="text" value="${t.t}" onchange="editEvTask(${ei}, 'digital', ${ti}, this.value)" class="text-[11px] font-bold flex-1 outline-none ${t.d ? 'line-through text-slate-400' : ''}">
-                                    </div>
-                                `).join('')}
+            const container = document.getElementById('events-container');
+            container.innerHTML = (b.events || []).map((ev, i) => {
+                const totalCost = (ev.purchases || []).reduce((acc, curr) => acc + (parseFloat(curr.cost) || 0), 0);
+                return `
+                <div class="section-card relative border-t-4 border-blue-600 bg-white">
+                    <div class="flex justify-between items-start mb-6">
+                        <div class="flex-1">
+                            <input type="text" value="${ev.name}" onchange="editEvent(${i}, 'name', this.value)" class="text-xl font-black text-slate-800 bg-transparent border-none outline-none w-full uppercase italic">
+                            <div class="flex gap-4 mt-2">
+                                <div class="bg-slate-100 px-3 py-1 rounded-lg flex items-center gap-2">
+                                    <span class="text-[8px] font-black text-slate-400 uppercase">Fecha:</span>
+                                    <input type="date" value="${ev.date || ''}" onchange="editEvent(${i}, 'date', this.value)" class="bg-transparent text-[10px] font-bold outline-none">
+                                </div>
+                                <div class="bg-blue-50 px-3 py-1 rounded-lg flex items-center gap-2">
+                                    <span class="text-[8px] font-black text-blue-400 uppercase">Presupuesto:</span>
+                                    <span class="text-[10px] font-black text-blue-600">$${totalCost.toLocaleString()}</span>
+                                </div>
                             </div>
                         </div>
-                        <div>
-                            <div class="flex justify-between items-center mb-4">
-                                <h4 class="text-[9px] font-black text-blue-500 uppercase tracking-widest italic">Logística</h4>
-                                <button onclick="addEvTask(${ei}, 'logistics')" class="text-[9px] font-black text-slate-400">+</button>
-                            </div>
-                             <div class="space-y-2">
-                                ${ev.logistics.map((t, ti) => `
-                                    <div class="flex items-center gap-2">
-                                        <input type="checkbox" ${t.d ? 'checked' : ''} onchange="toggleEvTask(${ei}, 'logistics', ${ti})" class="w-3 h-3">
-                                        <input type="text" value="${t.t}" onchange="editEvTask(${ei}, 'logistics', ${ti}, this.value)" class="text-[11px] font-bold flex-1 outline-none ${t.d ? 'line-through text-slate-400' : ''}">
+                        <button onclick="removeEvent(${i})" class="text-slate-300 hover:text-red-500 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+                        <!-- Checklist Tareas -->
+                        <div class="bg-slate-50 p-4 rounded-2xl">
+                            <h5 class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4 italic">Logística / Tareas</h5>
+                            <div class="space-y-2 mb-4 max-h-48 overflow-y-auto no-scrollbar">
+                                ${(ev.tasks || []).map((t, ti) => `
+                                    <div class="flex items-center gap-3 bg-white p-2 rounded-lg border border-slate-100 shadow-sm">
+                                        <input type="checkbox" ${t.d ? 'checked' : ''} onchange="toggleEventTask(${i}, ${ti})" class="w-3 h-3 text-blue-600">
+                                        <input type="text" value="${t.t}" onchange="editEventTask(${i}, ${ti}, this.value)" class="text-[10px] font-bold flex-1 bg-transparent border-none outline-none ${t.d ? 'line-through text-slate-300' : 'text-slate-600'}">
                                     </div>
                                 `).join('')}
+                            </div>
+                            <div class="flex gap-2">
+                                <input type="text" id="new-ev-task-${i}" placeholder="Tarea..." class="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-[10px] outline-none">
+                                <button onclick="addEventTask(${i})" class="bg-blue-600 text-white p-2 rounded-lg">+</button>
+                            </div>
+                        </div>
+
+                        <!-- Checklist Compras/Contratos -->
+                        <div class="bg-slate-50 p-4 rounded-2xl">
+                            <h5 class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4 italic">Compras / Contratos</h5>
+                            <div class="space-y-2 mb-4 max-h-48 overflow-y-auto no-scrollbar">
+                                ${(ev.purchases || []).map((p, pi) => `
+                                    <div class="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-100 shadow-sm">
+                                        <input type="text" value="${p.t}" placeholder="Insumo" onchange="editEventPurchase(${i}, ${pi}, 't', this.value)" class="text-[10px] font-bold flex-1 bg-transparent border-none outline-none text-slate-600">
+                                        <span class="text-[10px] font-black text-slate-300">$</span>
+                                        <input type="number" value="${p.cost}" placeholder="0" onchange="editEventPurchase(${i}, ${pi}, 'cost', this.value)" class="text-[10px] font-black text-green-600 bg-transparent border-none outline-none w-16">
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <div class="flex gap-2">
+                                <input type="text" id="new-ev-pur-${i}" placeholder="Nombre..." class="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-[10px] outline-none">
+                                <input type="number" id="new-ev-cost-${i}" placeholder="$" class="w-16 bg-white border border-slate-200 rounded-lg px-3 py-2 text-[10px] outline-none">
+                                <button onclick="addEventPurchase(${i})" class="bg-green-600 text-white p-2 rounded-lg">+</button>
                             </div>
                         </div>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
         }
 
         window.addEvent = () => {
-            data[currentBranch].events.push({ name: 'NUEVO EVENTO', digital: [], logistics: [] });
+            data[currentBranch].events.unshift({ name: 'NUEVO EVENTO', date: '', tasks: [], purchases: [] });
             renderEvents();
             saveAll();
+        };
+
+        window.editEvent = (i, field, val) => {
+            data[currentBranch].events[i][field] = val;
+            saveAll();
+            if(field === 'date') renderEvents();
         };
 
         window.removeEvent = (i) => {
@@ -568,61 +593,72 @@
             saveAll();
         };
 
-        window.addEvTask = (ei, type) => {
-            data[currentBranch].events[ei][type].push({ t: 'Tarea...', d: false });
+        window.addEventTask = (i) => {
+            const input = document.getElementById(`new-ev-task-${i}`);
+            if(!input.value.trim()) return;
+            data[currentBranch].events[i].tasks.push({ t: input.value, d: false });
+            input.value = '';
             renderEvents();
             saveAll();
         };
 
-        window.toggleEvTask = (ei, type, ti) => {
-            data[currentBranch].events[ei][type][ti].d = !data[currentBranch].events[ei][type][ti].d;
+        window.toggleEventTask = (i, ti) => {
+            data[currentBranch].events[i].tasks[ti].d = !data[currentBranch].events[i].tasks[ti].d;
             renderEvents();
             saveAll();
         };
 
-        window.editEvTask = (ei, type, ti, val) => {
-            data[currentBranch].events[ei][type][ti].t = val;
+        window.editEventTask = (i, ti, val) => {
+            data[currentBranch].events[i].tasks[ti].t = val;
             saveAll();
         };
 
-        window.editEventName = (ei, val) => {
-            data[currentBranch].events[ei].name = val;
+        window.addEventPurchase = (i) => {
+            const t = document.getElementById(`new-ev-pur-${i}`);
+            const c = document.getElementById(`new-ev-cost-${i}`);
+            if(!t.value.trim()) return;
+            data[currentBranch].events[i].purchases.push({ t: t.value, cost: parseFloat(c.value) || 0 });
+            t.value = ''; c.value = '';
+            renderEvents();
             saveAll();
+        };
+
+        window.editEventPurchase = (i, pi, field, val) => {
+            data[currentBranch].events[i].purchases[pi][field] = field === 'cost' ? parseFloat(val) || 0 : val;
+            saveAll();
+            if(field === 'cost') renderEvents();
         };
 
         // --- EXPRESS ---
         function renderExpress() {
             const b = data[currentBranch];
             const list = document.getElementById('express-list');
-            const count = document.getElementById('express-count');
-            if(!b.express) b.express = [];
-            count.innerText = b.express.length;
-            list.innerHTML = b.express.map((ex, i) => `
-                <div class="bg-slate-800 p-4 rounded-2xl flex justify-between items-center group">
+            document.getElementById('express-count').innerText = (b.express || []).length;
+            list.innerHTML = (b.express || []).map((ex, i) => `
+                <div class="bg-slate-800/50 p-4 rounded-2xl flex items-center justify-between group border border-slate-700/50">
                     <div class="flex items-center gap-4">
-                        <span class="text-xs font-black text-blue-400">${i+1}</span>
-                        <h4 class="text-sm font-bold text-slate-100 uppercase">${ex.n}</h4>
+                        <span class="text-[9px] font-black text-slate-500 uppercase italic">${i+1}.</span>
+                        <div>
+                            <p class="text-xs font-black text-blue-400 uppercase italic">${ex.nom}</p>
+                            <a href="${ex.link}" target="_blank" class="text-[9px] text-slate-500 font-bold hover:text-white transition-colors uppercase tracking-widest">Abrir en Asana</a>
+                        </div>
                     </div>
-                    <div class="flex items-center gap-4">
-                        <a href="${ex.l}" target="_blank" class="text-[9px] font-black text-slate-400 hover:text-white uppercase tracking-widest">Ver Asana</a>
-                        <button onclick="removeExpress(${i})" class="opacity-0 group-hover:opacity-100 text-red-400 transition-all">
-                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                        </button>
-                    </div>
+                    <button onclick="removeExpress(${i})" class="opacity-0 group-hover:opacity-100 transition-opacity text-slate-600 hover:text-red-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                    </button>
                 </div>
             `).join('');
         }
 
         window.addExpress = () => {
-            const n = document.getElementById('ex-nom').value;
-            const l = document.getElementById('ex-link').value;
-            if(n && l) {
-                data[currentBranch].express.push({ n, l });
-                document.getElementById('ex-nom').value = '';
-                document.getElementById('ex-link').value = '';
-                renderExpress();
-                saveAll();
-            }
+            const nom = document.getElementById('ex-nom').value;
+            const link = document.getElementById('ex-link').value;
+            if(!nom || !link) return;
+            data[currentBranch].express.unshift({ nom, link });
+            document.getElementById('ex-nom').value = '';
+            document.getElementById('ex-link').value = '';
+            renderExpress();
+            saveAll();
         };
 
         window.removeExpress = (i) => {
@@ -631,29 +667,45 @@
             saveAll();
         };
 
-        // --- INSUMOS ---
+        // --- INSUMOS (Renovaciones) ---
         function renderInsumos() {
             const b = data[currentBranch];
             const grid = document.getElementById('insumos-grid');
-            if(!b.insumos) b.insumos = [];
-            grid.innerHTML = b.insumos.map((ins, i) => `
-                <div class="bg-white border border-slate-100 p-6 rounded-[32px] shadow-sm">
-                    <div class="flex justify-between mb-4">
-                         <input type="text" value="${ins.t}" onchange="editInsumoField(${i}, 't', this.value)" class="font-black uppercase text-sm outline-none w-full">
-                         <button onclick="removeInsumo(${i})" class="text-slate-300"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
-                    </div>
-                    <div class="space-y-4">
-                        <div class="flex justify-between items-center bg-slate-50 p-3 rounded-2xl">
-                             <span class="text-[10px] font-bold text-slate-400 uppercase">Estado</span>
-                             <select onchange="editInsumoField(${i}, 's', this.value)" class="bg-transparent text-[10px] font-black uppercase outline-none">
-                                <option value="PENDIENTE" ${ins.s==='PENDIENTE'?'selected':''}>Pendiente</option>
-                                <option value="COMPRADO" ${ins.s==='COMPRADO'?'selected':''}>Comprado</option>
-                                <option value="LISTO" ${ins.s==='LISTO'?'selected':''}>Listo</option>
-                             </select>
+            grid.innerHTML = (b.insumos || []).map((ins, i) => `
+                <div class="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm relative overflow-hidden group">
+                    <div class="flex justify-between items-start mb-6">
+                        <div class="bg-slate-50 p-3 rounded-2xl text-blue-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
                         </div>
-                         <div class="flex justify-between items-center bg-slate-50 p-3 rounded-2xl">
-                             <span class="text-[10px] font-bold text-slate-400 uppercase">Cantidad</span>
-                             <input type="number" value="${ins.q}" onchange="editInsumoField(${i}, 'q', this.value)" class="bg-transparent text-[10px] font-black text-right outline-none w-10">
+                        <button onclick="removeInsumo(${i})" class="text-slate-200 hover:text-red-400 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                    
+                    <input type="text" value="${ins.name}" onchange="editInsumo(${i}, 'name', this.value)" placeholder="Nombre Insumo" class="w-full text-sm font-black text-slate-800 uppercase italic bg-transparent border-none outline-none mb-4">
+                    
+                    <div class="space-y-4">
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest italic">Fecha de Entrada</label>
+                            <div class="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="text-blue-500"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                <input type="date" value="${ins.entryDate || ''}" onchange="editInsumo(${i}, 'entryDate', this.value)" class="bg-transparent text-[10px] font-bold outline-none flex-1 text-slate-700">
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[8px] font-black text-emerald-500 uppercase tracking-widest italic">Fecha de Renovación</label>
+                            <div class="flex items-center gap-2 bg-emerald-50 rounded-xl px-3 py-2 border border-emerald-100">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="text-emerald-600"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+                                <input type="date" value="${ins.renewalDate || ''}" onchange="editInsumo(${i}, 'renewalDate', this.value)" class="bg-transparent text-[10px] font-bold outline-none flex-1 text-emerald-700">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 pt-4 border-t border-slate-50">
+                        <div class="flex justify-between items-center">
+                            <span class="text-[8px] font-black text-slate-300 uppercase tracking-widest italic italic">Estado Cloud</span>
+                            <div class="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
                         </div>
                     </div>
                 </div>
@@ -661,28 +713,21 @@
         }
 
         window.addInsumo = () => {
-            data[currentBranch].insumos.push({ t: 'NUEVO MATERIAL', s: 'PENDIENTE', q: 1 });
+            data[currentBranch].insumos.push({ name: 'NUEVO INSUMO', entryDate: '', renewalDate: '' });
             renderInsumos();
             saveAll();
         };
 
-        window.editInsumoField = (i, field, val) => {
+        window.editInsumo = (i, field, val) => {
             data[currentBranch].insumos[i][field] = val;
             saveAll();
+            renderInsumos();
         };
 
         window.removeInsumo = (i) => {
             data[currentBranch].insumos.splice(i, 1);
             renderInsumos();
             saveAll();
-        };
-
-        // Renderizado inicial
-        window.onload = () => {
-            if (!isCloudMode) {
-                // Si no hay configuración de Firebase, intentamos abrir local después de un tiempo o mediante el botón
-                console.log("Sistema en modo local por defecto.");
-            }
         };
 
     </script>
