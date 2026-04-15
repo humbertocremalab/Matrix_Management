@@ -5,46 +5,43 @@ import {
   Package, 
   Zap, 
   Plus, 
+  MoreHorizontal, 
   CheckCircle2, 
   Circle, 
-  Edit2, 
-  Save, 
-  Trash2, 
-  Clock, 
-  DollarSign, 
-  LogOut, 
-  Loader2, 
-  X, 
-  AlertCircle, 
-  ChevronDown, 
-  User as UserIcon, 
-  Lock, 
-  Target, 
+  ChevronLeft, 
+  ChevronRight, 
+  ExternalLink,
+  Edit2,
+  Save,
+  Trash2,
+  Clock,
+  DollarSign,
+  LogOut,
+  FolderOpen,
+  Image as ImageIcon,
+  Loader2,
+  X,
+  Target,
   Users,
-  ExternalLink
+  TrendingUp
 } from 'lucide-react';
 
 // Firebase
 import { initializeApp } from "firebase/app";
-import { 
-  getAuth, 
-  signInAnonymously, 
-  signInWithCustomToken, 
-  onAuthStateChanged, 
-  signOut, 
-  signInWithEmailAndPassword 
-} from "firebase/auth";
-import { 
-  getFirestore, 
-  doc, 
-  setDoc, 
-  onSnapshot, 
-  getDoc, 
-  collection 
-} from "firebase/firestore";
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "firebase/auth";
+import { getFirestore, doc, setDoc, onSnapshot } from "firebase/firestore";
 
 // --- CONFIG ---
-const firebaseConfig = JSON.parse(__firebase_config);
+const DRIVE_API_KEY = "AIzaSyBH8-5rLNM_--UWRMIywOb-m5-UOuzUYUw";
+const firebaseConfig = {
+  apiKey: "AIzaSyCi3nxC2c8Sp4JAs9ylU4uxVagVXToP8HM",
+  authDomain: "accountmatrixhub.firebaseapp.com",
+  projectId: "accountmatrixhub",
+  storageBucket: "accountmatrixhub.firebasestorage.app",
+  messagingSenderId: "912278749399",
+  appId: "1:912278749399:web:f6c4f8f575b01243d2b092"
+};
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -53,26 +50,17 @@ const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'account-matrix-hub'
 // --- MAIN APP ---
 export default function App() {
   const [user, setUser] = useState(null);
-  const [role, setRole] = useState('user'); 
   const [activeTab, setActiveTab] = useState('meta');
   const [isEditingMetrics, setIsEditingMetrics] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPass, setLoginPass] = useState('');
-  const [authError, setAuthError] = useState('');
-  const [selectedBranch, setSelectedBranch] = useState('Monterrey');
 
   // Estados de datos
   const [metaData, setMetaData] = useState({
-    branches: {
-      'Monterrey': { leads: 145, metaLeads: 200, budget: 15000, spent: 8750 },
-      'Saltillo': { leads: 80, metaLeads: 150, budget: 10000, spent: 4200 },
-      'CDMX': { leads: 210, metaLeads: 300, budget: 25000, spent: 18000 }
-    },
+    metrics: { leads: 145, metaLeads: 200, budget: 15000, spent: 8750 },
     checklists: {
-      awareness: [{ id: 1, text: 'Creativos de video listos', done: true }],
-      prospeccion: [{ id: 3, text: 'Landing page optimizada', done: true }],
-      retargeting: [{ id: 5, text: 'Audiencias personalizadas', done: false }]
+      awareness: [{ id: 1, text: 'Creativos de video listos', done: true }, { id: 2, text: 'Segmentación configurada', done: false }],
+      prospeccion: [{ id: 3, text: 'Landing page optimizada', done: true }, { id: 4, text: 'Formulario de contacto activo', done: false }],
+      retargeting: [{ id: 5, text: 'Audiencias personalizadas creadas', done: false }, { id: 6, text: 'Pixel instalado en web', done: true }]
     },
     drive: { awareness: '', prospeccion: '', retargeting: '' }
   });
@@ -81,284 +69,190 @@ export default function App() {
   const [insumos, setInsumos] = useState([]);
   const [express, setExpress] = useState([]);
 
-  // Auth Effect
+  // Auth
   useEffect(() => {
     const initAuth = async () => {
       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        try { await signInWithCustomToken(auth, __initial_auth_token); } catch(e) { console.error(e); }
+        await signInWithCustomToken(auth, __initial_auth_token);
+      } else {
+        await signInAnonymously(auth);
       }
     };
     initAuth();
-
-    const unsubscribe = onAuthStateChanged(auth, async (u) => {
-      if (u) {
-        setUser(u);
-        // Regla 1: Ruta de documento privada para el rol
-        const userDocRef = doc(db, 'artifacts', APP_ID, 'users', u.uid, 'profile', 'info');
-        try {
-          const userDoc = await getDoc(userDocRef);
-          if (userDoc.exists()) {
-            setRole(userDoc.data().role || 'user');
-          } else {
-            setRole('admin'); 
-          }
-        } catch (e) {
-          setRole('admin');
-        }
-      } else {
-        setUser(null);
-      }
-      setLoading(false);
-    });
-    return () => unsubscribe();
+    return onAuthStateChanged(auth, setUser);
   }, []);
 
-  // Sync Firestore - CORRECCIÓN DE RUTA (Regla 1: 6 segmentos)
+  // Sync Firestore
   useEffect(() => {
     if (!user) return;
-    
-    // Cambiamos a una ruta de documento válida: artifacts/{id}/public/data/{coleccion}/{docId}
-    const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'main_data', 'current');
-    
-    const unsub = onSnapshot(docRef, (snap) => {
+    const docRef = doc(db, 'artifacts', APP_ID, 'public', 'main_data');
+    return onSnapshot(docRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
         if (data.metaData) setMetaData(data.metaData);
-        if (data.eventos) setEventos(data.eventos || []);
-        if (data.insumos) setInsumos(data.insumos || []);
-        if (data.express) setExpress(data.express || []);
+        if (data.eventos) setEventos(data.eventos);
+        if (data.insumos) setInsumos(data.insumos);
+        if (data.express) setExpress(data.express);
       }
-    }, (err) => {
-      console.error("Firestore Error details:", err);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching data:", error);
+      setLoading(false);
     });
-    return () => unsub();
   }, [user]);
 
   const saveData = async (updates) => {
-    if (role !== 'admin' || !user) return; 
-    const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'main_data', 'current');
-    try {
-        await setDoc(docRef, {
-            metaData, eventos, insumos, express, ...updates
-        }, { merge: true });
-    } catch (e) {
-        console.error("Error saving data:", e);
-    }
+    const docRef = doc(db, 'artifacts', APP_ID, 'public', 'main_data');
+    await setDoc(docRef, {
+      metaData, eventos, insumos, express, ...updates
+    }, { merge: true });
   };
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setAuthError('');
-    try {
-      if (!loginEmail || !loginPass) {
-        await signInAnonymously(auth);
-      } else {
-        await signInWithEmailAndPassword(auth, loginEmail, loginPass);
-      }
-    } catch (err) {
-      setAuthError('Credenciales incorrectas o error de conexión');
-      setLoading(false);
-    }
-  };
-
-  if (loading) return (
-    <div className="h-screen flex items-center justify-center bg-white">
+  if (!user || loading) return (
+    <div className="h-screen flex items-center justify-center bg-slate-50">
       <Loader2 className="animate-spin text-blue-600" size={40} />
     </div>
   );
 
-  if (!user) return (
-    <div className="h-screen flex items-center justify-center bg-[#f8fafc] p-6">
-      <div className="w-full max-w-md bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-2xl shadow-blue-100/50">
-        <div className="flex flex-col items-center mb-10 text-center">
-          <div className="bg-blue-600 p-4 rounded-3xl text-white shadow-xl shadow-blue-200 mb-6">
-            <LayoutDashboard size={32} />
-          </div>
-          <h1 className="text-3xl font-black text-slate-800">Account Manager</h1>
-          <p className="text-slate-400 mt-2 font-medium">Ingresa para gestionar tu cuenta</p>
-        </div>
-
-        <form onSubmit={handleLogin} className="space-y-6">
-          <div className="space-y-2">
-            <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Email</label>
-            <div className="relative">
-              <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input 
-                type="email" 
-                className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium" 
-                placeholder="admin@matrix.com"
-                value={loginEmail}
-                onChange={e => setLoginEmail(e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Contraseña</label>
-            <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input 
-                type="password" 
-                className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium" 
-                placeholder="••••••••"
-                value={loginPass}
-                onChange={e => setLoginPass(e.target.value)}
-              />
-            </div>
-          </div>
-          {authError && <p className="text-rose-500 text-xs font-bold text-center">{authError}</p>}
-          <button type="submit" className="w-full py-5 bg-blue-600 text-white rounded-[1.5rem] font-bold shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all active:scale-[0.98]">
-            Iniciar Sesión
-          </button>
-          <div className="text-center pt-2">
-            <button type="button" onClick={() => signInAnonymously(auth)} className="text-xs font-bold text-slate-400 hover:text-blue-500 transition-colors">
-              Entrar como Invitado
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-
-  const currentMetrics = metaData.branches[selectedBranch] || { leads: 0, metaLeads: 1, budget: 0, spent: 0 };
-
   return (
     <div className="flex h-screen bg-[#f8fafc] text-slate-800 overflow-hidden font-sans">
-      {/* Sidebar */}
-      <aside className="hidden md:flex flex-col w-72 bg-white border-r border-slate-100">
-        <div className="p-8 flex items-center gap-4">
-          <div className="bg-blue-600 p-3 rounded-2xl text-white shadow-lg shadow-blue-100">
-            <LayoutDashboard size={24} />
+      {/* Sidebar - Desktop */}
+      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-slate-200">
+        <div className="p-6 flex items-center gap-3">
+          <div className="bg-blue-600 p-2 rounded-lg text-white">
+            <LayoutDashboard size={20} />
           </div>
           <div>
-            <h1 className="font-black text-xl leading-tight text-slate-800">Account</h1>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Manager</p>
+            <h1 className="font-bold text-lg leading-tight">Account</h1>
+            <p className="text-xs text-slate-400">Manager</p>
           </div>
         </div>
 
         <nav className="flex-1 px-4 space-y-2 mt-4">
-          <NavItem active={activeTab === 'meta'} icon={<Zap size={20}/>} label="Embudo Meta" onClick={() => setActiveTab('meta')} />
-          <NavItem active={activeTab === 'eventos'} icon={<Calendar size={20}/>} label="Eventos" onClick={() => setActiveTab('eventos')} />
-          <NavItem active={activeTab === 'insumos'} icon={<Package size={20}/>} label="Insumos" onClick={() => setActiveTab('insumos')} />
-          <NavItem active={activeTab === 'express'} icon={<Zap size={20}/>} label="Express" onClick={() => setActiveTab('express')} />
+          <NavItem active={activeTab === 'meta'} icon={<Zap size={18}/>} label="Embudo Meta" onClick={() => setActiveTab('meta')} />
+          <NavItem active={activeTab === 'eventos'} icon={<Calendar size={18}/>} label="Eventos" onClick={() => setActiveTab('eventos')} />
+          <NavItem active={activeTab === 'insumos'} icon={<Package size={18}/>} label="Insumos" onClick={() => setActiveTab('insumos')} />
+          <NavItem active={activeTab === 'express'} icon={<Zap size={18}/>} label="Express" onClick={() => setActiveTab('express')} />
         </nav>
 
-        <div className="p-6 border-t border-slate-50 space-y-4">
-          <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 rounded-2xl">
-            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold uppercase text-xs">
-              {role.substring(0, 2)}
-            </div>
-            <div>
-              <p className="text-sm font-black text-slate-800 capitalize">{role}</p>
-              <p className="text-[10px] font-bold text-slate-400 uppercase">Sesión activa</p>
-            </div>
-          </div>
-          <button onClick={() => signOut(auth)} className="flex items-center gap-3 w-full p-4 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all font-bold text-sm text-left">
-            <LogOut size={18} /> <span>Cerrar sesión</span>
+        <div className="p-4 border-t border-slate-100">
+          <button onClick={() => signOut(auth)} className="flex items-center gap-3 w-full p-3 text-slate-500 hover:bg-slate-50 rounded-xl transition-all">
+            <LogOut size={18} /> <span className="text-sm font-medium">Cerrar sesión</span>
           </button>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto pb-24 md:pb-0">
-        <div className="max-w-6xl mx-auto p-8 md:p-12">
-          
-          {/* TAB: META */}
-          {activeTab === 'meta' && (
-            <div className="space-y-12 animate-in fade-in duration-500">
-              <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div>
-                  <h2 className="text-4xl font-black tracking-tight text-slate-800">Embudo Meta</h2>
-                  <p className="text-slate-400 mt-2 font-medium flex items-center gap-2">
-                    <Target size={16} className="text-blue-500"/> Gestiona tus campañas por sucursal
-                  </p>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <select 
-                      value={selectedBranch}
-                      onChange={(e) => setSelectedBranch(e.target.value)}
-                      className="appearance-none bg-white border border-slate-200 px-6 py-3.5 pr-12 rounded-2xl font-bold text-sm shadow-sm hover:border-blue-400 transition-all outline-none cursor-pointer"
-                    >
-                      <option value="Monterrey">Monterrey</option>
-                      <option value="Saltillo">Saltillo</option>
-                      <option value="CDMX">CDMX</option>
-                    </select>
-                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
-                  </div>
+      {/* Mobile Nav */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around p-3 z-50">
+          <MobileIcon active={activeTab === 'meta'} icon={<Zap/>} onClick={() => setActiveTab('meta')} />
+          <MobileIcon active={activeTab === 'eventos'} icon={<Calendar/>} onClick={() => setActiveTab('eventos')} />
+          <MobileIcon active={activeTab === 'insumos'} icon={<Package/>} onClick={() => setActiveTab('insumos')} />
+          <MobileIcon active={activeTab === 'express'} icon={<Zap/>} onClick={() => setActiveTab('express')} />
+      </div>
 
-                  {role === 'admin' && (
-                    <button 
-                      onClick={() => {
-                        if (isEditingMetrics) saveData({ metaData });
-                        setIsEditingMetrics(!isEditingMetrics);
-                      }}
-                      className={`flex items-center gap-2 px-6 py-3.5 rounded-2xl text-sm font-bold shadow-lg transition-all ${isEditingMetrics ? 'bg-emerald-500 text-white shadow-emerald-100' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-slate-100'}`}
-                    >
-                      {isEditingMetrics ? <><Save size={18}/> Guardar Cambios</> : <><Edit2 size={18}/> Editar Métricas</>}
-                    </button>
-                  )}
+      {/* Content Area */}
+      <main className="flex-1 overflow-y-auto pb-24 md:pb-0">
+        <div className="max-w-6xl mx-auto p-6 md:p-10">
+          {activeTab === 'meta' && (
+            <div className="space-y-10 animate-in fade-in duration-500">
+              <header className="flex justify-between items-end">
+                <div>
+                  <h2 className="text-3xl font-bold tracking-tight">Embudo Meta</h2>
+                  <p className="text-slate-500 mt-1">Gestiona tus campañas y leads de Meta Ads</p>
                 </div>
+                <button 
+                  onClick={() => {
+                    if (isEditingMetrics) saveData({ metaData });
+                    setIsEditingMetrics(!isEditingMetrics);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-semibold shadow-sm hover:bg-slate-50 transition-all"
+                >
+                  {isEditingMetrics ? <><Save size={16}/> Guardar</> : <><Edit2 size={16}/> Editar</>}
+                </button>
               </header>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              {/* Visual Funnel Representation */}
+              <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                <h3 className="text-center font-bold text-slate-400 uppercase tracking-widest text-xs mb-8">Estructura del Embudo (AWA - RET - PRO)</h3>
+                <div className="flex flex-col items-center gap-1">
+                  {/* AWA Step */}
+                  <div className="w-full max-w-2xl bg-gradient-to-r from-blue-600 to-blue-500 h-20 rounded-t-2xl flex items-center justify-between px-10 text-white shadow-lg relative" style={{ clipPath: 'polygon(0% 0%, 100% 0%, 95% 100%, 5% 100%)' }}>
+                    <div className="flex items-center gap-3">
+                      <div className="bg-white/20 p-2 rounded-lg"><Zap size={20}/></div>
+                      <span className="font-black text-lg">AWA</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-bold opacity-80">Awareness</div>
+                      <div className="font-black">Top of Funnel</div>
+                    </div>
+                  </div>
+
+                  {/* RET Step */}
+                  <div className="w-[85%] max-w-2xl bg-gradient-to-r from-indigo-600 to-indigo-500 h-20 flex items-center justify-between px-10 text-white shadow-lg relative" style={{ clipPath: 'polygon(5% 0%, 95% 0%, 90% 100%, 10% 100%)' }}>
+                    <div className="flex items-center gap-3">
+                      <div className="bg-white/20 p-2 rounded-lg"><TrendingUp size={20}/></div>
+                      <span className="font-black text-lg">RET</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-bold opacity-80">Retention</div>
+                      <div className="font-black">Middle of Funnel</div>
+                    </div>
+                  </div>
+
+                  {/* PRO Step */}
+                  <div className="w-[70%] max-w-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 h-20 rounded-b-2xl flex items-center justify-between px-10 text-white shadow-lg relative" style={{ clipPath: 'polygon(10% 0%, 90% 0%, 85% 100%, 15% 100%)' }}>
+                    <div className="flex items-center gap-3">
+                      <div className="bg-white/20 p-2 rounded-lg"><Target size={20}/></div>
+                      <span className="font-black text-lg">PRO</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-bold opacity-80">Product</div>
+                      <div className="font-black">Bottom of Funnel</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Métricas Principales */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <MetricCard 
                   label="Leads Generados" 
-                  value={currentMetrics.leads} 
-                  icon={<Users className="text-blue-600" size={24}/>}
-                  color="bg-blue-50"
+                  value={metaData.metrics.leads} 
+                  icon={<UsersIcon color="bg-blue-50 text-blue-600" />}
                   editing={isEditingMetrics}
-                  onChange={(v) => {
-                    const newBranches = { ...metaData.branches, [selectedBranch]: { ...currentMetrics, leads: v } };
-                    setMetaData({ ...metaData, branches: newBranches });
-                  }}
+                  onChange={(v) => setMetaData({...metaData, metrics: {...metaData.metrics, leads: v}})}
                 />
                 <MetricCard 
                   label="Meta de Leads" 
-                  value={currentMetrics.metaLeads} 
-                  subtext={`${Math.round((currentMetrics.leads/(currentMetrics.metaLeads || 1))*100)}% alcanzado`}
-                  icon={<Target className="text-emerald-600" size={24}/>}
-                  color="bg-emerald-50"
+                  value={metaData.metrics.metaLeads} 
+                  subtext={`${Math.round((metaData.metrics.leads/metaData.metrics.metaLeads)*100)}% alcanzado`}
+                  icon={<TargetIcon color="bg-emerald-50 text-emerald-600" />}
                   editing={isEditingMetrics}
-                  onChange={(v) => {
-                    const newBranches = { ...metaData.branches, [selectedBranch]: { ...currentMetrics, metaLeads: v } };
-                    setMetaData({ ...metaData, branches: newBranches });
-                  }}
+                  onChange={(v) => setMetaData({...metaData, metrics: {...metaData.metrics, metaLeads: v}})}
                 />
                 <MetricCard 
                   label="Presupuesto" 
-                  value={`$${(currentMetrics.budget || 0).toLocaleString()}`} 
-                  icon={<DollarSign className="text-indigo-600" size={24}/>}
-                  color="bg-indigo-50"
+                  value={`$${metaData.metrics.budget.toLocaleString()}`} 
+                  icon={<MoneyIcon color="bg-indigo-50 text-indigo-600" />}
                   editing={isEditingMetrics}
                   isCurrency
-                  onChange={(v) => {
-                    const newBranches = { ...metaData.branches, [selectedBranch]: { ...currentMetrics, budget: v } };
-                    setMetaData({ ...metaData, branches: newBranches });
-                  }}
+                  onChange={(v) => setMetaData({...metaData, metrics: {...metaData.metrics, budget: v}})}
                 />
                 <MetricCard 
-                  label="Gasto Actual" 
-                  value={`$${(currentMetrics.spent || 0).toLocaleString()}`} 
-                  subtext={`${Math.round((currentMetrics.spent/(currentMetrics.budget || 1))*100)}% usado`}
-                  icon={<Zap className="text-amber-600" size={24}/>}
-                  color="bg-amber-50"
+                  label="Gasto" 
+                  value={`$${metaData.metrics.spent.toLocaleString()}`} 
+                  subtext={`${Math.round((metaData.metrics.spent/metaData.metrics.budget)*100)}% usado`}
+                  icon={<ChartIcon color="bg-amber-50 text-amber-600" />}
                   editing={isEditingMetrics}
                   isCurrency
-                  onChange={(v) => {
-                    const newBranches = { ...metaData.branches, [selectedBranch]: { ...currentMetrics, spent: v } };
-                    setMetaData({ ...metaData, branches: newBranches });
-                  }}
+                  onChange={(v) => setMetaData({...metaData, metrics: {...metaData.metrics, spent: v}})}
                 />
               </div>
 
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-black text-2xl text-slate-800">Checklist Operativo</h3>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Control de calidad</p>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {/* Checklist Embudo */}
+              <div className="space-y-4">
+                <h3 className="font-bold text-lg">Checklist del Embudo</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <ChecklistCol 
                     title="Awareness" 
                     items={metaData.checklists.awareness} 
@@ -368,7 +262,6 @@ export default function App() {
                       setMetaData(newMeta);
                       saveData({ metaData: newMeta });
                     }}
-                    role={role}
                   />
                   <ChecklistCol 
                     title="Prospección" 
@@ -379,7 +272,6 @@ export default function App() {
                       setMetaData(newMeta);
                       saveData({ metaData: newMeta });
                     }}
-                    role={role}
                   />
                   <ChecklistCol 
                     title="Retargeting" 
@@ -390,314 +282,449 @@ export default function App() {
                       setMetaData(newMeta);
                       saveData({ metaData: newMeta });
                     }}
-                    role={role}
+                  />
+                </div>
+              </div>
+
+              {/* Artes del Embudo */}
+              <div className="space-y-6">
+                <h3 className="font-bold text-lg">Artes del Embudo</h3>
+                <div className="space-y-6">
+                  <DriveCarousel 
+                    title="Awareness" 
+                    folderId={metaData.drive.awareness} 
+                    onLink={(id) => {
+                      const newMeta = {...metaData, drive: {...metaData.drive, awareness: id}};
+                      setMetaData(newMeta);
+                      saveData({ metaData: newMeta });
+                    }}
+                  />
+                  <DriveCarousel 
+                    title="Prospección" 
+                    folderId={metaData.drive.prospeccion} 
+                    onLink={(id) => {
+                      const newMeta = {...metaData, drive: {...metaData.drive, prospeccion: id}};
+                      setMetaData(newMeta);
+                      saveData({ metaData: newMeta });
+                    }}
+                  />
+                  <DriveCarousel 
+                    title="Retargeting" 
+                    folderId={metaData.drive.retargeting} 
+                    onLink={(id) => {
+                      const newMeta = {...metaData, drive: {...metaData.drive, retargeting: id}};
+                      setMetaData(newMeta);
+                      saveData({ metaData: newMeta });
+                    }}
                   />
                 </div>
               </div>
             </div>
           )}
 
-          {/* TAB: EVENTOS */}
           {activeTab === 'eventos' && (
-            <div className="space-y-12 animate-in slide-in-from-right duration-500">
-              <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-8 animate-in slide-in-from-right duration-500">
+              <header className="flex justify-between items-center">
                 <div>
-                  <h2 className="text-4xl font-black tracking-tight text-slate-800">Eventos</h2>
-                  <p className="text-slate-400 mt-2 font-medium">Planificación logística y presupuestaria</p>
+                  <h2 className="text-3xl font-bold tracking-tight">Eventos</h2>
+                  <p className="text-slate-500 mt-1">Gestiona tareas y gastos de tus eventos</p>
                 </div>
-                {role === 'admin' && (
-                   <button 
-                    onClick={() => {
-                        const nombre = prompt('Nombre del Evento:');
-                        if (nombre) {
-                            const newEventos = [{ id: Date.now(), title: nombre, date: new Date().toLocaleDateString(), budget: 0, status: 'Planeación' }, ...eventos];
-                            setEventos(newEventos);
-                            saveData({ eventos: newEventos });
-                        }
-                    }}
-                    className="flex items-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-[1.5rem] font-bold shadow-xl shadow-blue-200"
-                   >
-                     <Plus size={20}/> Nuevo Evento
-                   </button>
-                )}
+                <button 
+                  onClick={() => {
+                    const nombre = prompt('Nombre del evento:');
+                    if(nombre) {
+                      const newEventos = [...eventos, { id: Date.now(), nombre, fecha: new Date().toLocaleDateString(), tareas: [], gastos: [] }];
+                      setEventos(newEventos);
+                      saveData({ eventos: newEventos });
+                    }
+                  }}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all"
+                >
+                  <Plus size={18}/> Nuevo Evento
+                </button>
               </header>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {eventos.map(ev => (
-                  <div key={ev.id} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm relative group">
-                    <div className="flex justify-between items-start mb-6">
-                        <div>
-                            <h4 className="text-xl font-black text-slate-800">{ev.title}</h4>
-                            <p className="text-sm font-bold text-slate-400">{ev.date}</p>
-                        </div>
-                        <span className="px-4 py-1.5 bg-blue-50 text-blue-600 text-[10px] font-black uppercase rounded-full tracking-widest">{ev.status}</span>
-                    </div>
-                    <div className="flex gap-4">
-                        <div className="flex-1 bg-slate-50 p-4 rounded-2xl">
-                             <p className="text-[10px] font-black text-slate-400 uppercase">Presupuesto</p>
-                             <p className="text-lg font-black text-slate-800">${(ev.budget || 0).toLocaleString()}</p>
-                        </div>
-                    </div>
-                    {role === 'admin' && (
-                         <button onClick={() => {
-                            const newEventos = eventos.filter(e => e.id !== ev.id);
-                            setEventos(newEventos);
-                            saveData({ eventos: newEventos });
-                         }} className="absolute top-8 right-8 text-slate-200 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all">
-                             <Trash2 size={18}/>
-                         </button>
-                    )}
-                  </div>
-                ))}
-                {eventos.length === 0 && <p className="text-slate-400 text-center py-10 col-span-2">No hay eventos registrados.</p>}
+              <div className="grid grid-cols-1 gap-8">
+                {eventos.length === 0 ? (
+                  <div className="py-20 text-center text-slate-400 font-medium">No hay eventos creados. Selecciona o crea uno para comenzar.</div>
+                ) : (
+                  eventos.map(ev => (
+                    <EventCard key={ev.id} ev={ev} onUpdate={(updated) => {
+                      const newEventos = eventos.map(e => e.id === ev.id ? updated : e);
+                      setEventos(newEventos);
+                      saveData({ eventos: newEventos });
+                    }} />
+                  ))
+                )}
               </div>
             </div>
           )}
 
-          {/* TAB: INSUMOS */}
           {activeTab === 'insumos' && (
-            <div className="space-y-10 animate-in slide-in-from-right duration-500">
-              <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-8 animate-in slide-in-from-right duration-500">
+              <header className="flex justify-between items-center">
                 <div>
-                  <h2 className="text-4xl font-black tracking-tight text-slate-800">Insumos</h2>
-                  <p className="text-slate-400 mt-2 font-medium">Control de renovaciones de materiales</p>
+                  <h2 className="text-3xl font-bold tracking-tight">Insumos y Renovaciones</h2>
+                  <p className="text-slate-500 mt-1">Control de materiales impresos en sucursal</p>
                 </div>
-                {role === 'admin' && (
-                  <button 
-                    onClick={() => {
-                      const nombre = prompt('Nombre del material:');
-                      const suc = prompt('Sucursal (Monterrey/Saltillo/CDMX):');
-                      if(nombre) {
-                        const newInsumos = [{ id: Date.now(), nombre, sucursal: suc || 'Monterrey', dias: 30, lastDate: new Date().toISOString() }, ...insumos];
-                        setInsumos(newInsumos);
-                        saveData({ insumos: newInsumos });
-                      }
-                    }}
-                    className="flex items-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-[1.5rem] font-bold shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all active:scale-[0.98]"
-                  >
-                    <Plus size={20}/> Nuevo Insumo
-                  </button>
-                )}
+                <button 
+                  onClick={() => {
+                    const nombre = prompt('Nombre del material:');
+                    if(nombre) {
+                      const newInsumos = [...insumos, { id: Date.now(), nombre, sucursal: 'Sucursal Centro', dias: 30, lastDate: new Date().toISOString() }];
+                      setInsumos(newInsumos);
+                      saveData({ insumos: newInsumos });
+                    }
+                  }}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all"
+                >
+                  <Plus size={18}/> Agregar
+                </button>
               </header>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {insumos.map(ins => (
-                  <div key={ins.id} className="bg-white p-7 rounded-[2rem] border border-slate-100 shadow-sm relative group">
-                    <div className="flex items-start justify-between mb-4">
-                        <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl"><Package size={20}/></div>
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{ins.sucursal}</span>
-                    </div>
-                    <h4 className="text-lg font-black text-slate-800 mb-1">{ins.nombre}</h4>
-                    <p className="text-xs font-bold text-slate-400 mb-6 flex items-center gap-2"><Clock size={12}/> Renovación cada {ins.dias} días</p>
-                    {role === 'admin' && (
-                        <button onClick={() => {
-                            const newIns = insumos.filter(i => i.id !== ins.id);
-                            setInsumos(newIns);
-                            saveData({ insumos: newIns });
-                        }} className="absolute top-7 right-7 opacity-0 group-hover:opacity-100 text-slate-200 hover:text-rose-500 transition-all">
-                            <X size={18}/>
-                        </button>
-                    )}
-                  </div>
+                  <InsumoCard key={ins.id} item={ins} />
                 ))}
-                {insumos.length === 0 && <p className="text-slate-400 text-center py-10 col-span-3">No hay insumos cargados.</p>}
               </div>
             </div>
           )}
 
-          {/* TAB: EXPRESS */}
           {activeTab === 'express' && (
-            <div className="space-y-10 animate-in slide-in-from-right duration-500 max-w-4xl mx-auto">
-              <header className="flex items-end justify-between bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                <div>
-                  <h2 className="text-4xl font-black tracking-tight text-slate-800">Tareas Express</h2>
-                  <p className="text-slate-400 mt-2 font-medium flex items-center gap-2">
-                    <Zap size={16} className="text-amber-500 fill-amber-500"/> Cosas para hacer hoy
-                  </p>
-                </div>
-                <div className="text-right">
-                    <div className="text-3xl font-black text-blue-600">{express.filter(t => t.done).length}/{express.length}</div>
-                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Completadas</div>
-                </div>
+            <div className="space-y-8 animate-in slide-in-from-right duration-500 max-w-3xl">
+              <header>
+                <h2 className="text-3xl font-bold tracking-tight">Tareas Express</h2>
+                <p className="text-slate-500 mt-1">Tareas no planificadas del día a día</p>
               </header>
-
-              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-8">
-                <div className="flex gap-4">
-                  <input 
-                    id="newExpress"
-                    type="text" 
-                    placeholder="¿Qué hay que hacer hoy?" 
-                    className="flex-1 p-5 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-700" 
-                    onKeyDown={e => {
-                      if(e.key === 'Enter') {
-                        const input = e.currentTarget;
-                        if (!input.value) return;
-                        const newExp = [{ id: Date.now(), text: input.value, entry: new Date().toLocaleDateString('es-ES', {day:'2-digit', month:'short'}), done: false }, ...express];
-                        setExpress(newExp);
-                        saveData({ express: newExp });
-                        input.value = '';
-                      }
-                    }}
-                  />
-                  <button onClick={() => {
-                      const input = document.getElementById('newExpress');
-                      if(!input.value) return;
-                      const newExp = [{ id: Date.now(), text: input.value, entry: new Date().toLocaleDateString('es-ES', {day:'2-digit', month:'short'}), done: false }, ...express];
-                      setExpress(newExp);
-                      saveData({ express: newExp });
+              <div className="flex gap-2">
+                <input 
+                  id="newExpress"
+                  type="text" 
+                  placeholder="Nueva tarea express..." 
+                  className="flex-1 p-4 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium" 
+                  onKeyDown={e => {
+                    if(e.key === 'Enter') {
+                      const input = e.currentTarget;
+                      const newExpress = [...express, { id: Date.now(), text: input.value, entry: new Date().toLocaleDateString('es-ES', {day:'2-digit', month:'short'}), done: false, priority: 'Media' }];
+                      setExpress(newExpress);
+                      saveData({ express: newExpress });
                       input.value = '';
-                  }} className="bg-blue-600 text-white px-8 rounded-2xl font-black text-sm shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all">AGREGAR</button>
-                </div>
+                    }
+                  }}
+                />
+                <button onClick={() => {
+                    const input = document.getElementById('newExpress');
+                    if(input.value) {
+                     const newExpress = [...express, { id: Date.now(), text: input.value, entry: new Date().toLocaleDateString('es-ES', {day:'2-digit', month:'short'}), done: false, priority: 'Media' }];
+                     setExpress(newExpress);
+                     saveData({ express: newExpress });
+                     input.value = '';
+                    }
+                }} className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-lg shadow-blue-100">Agregar</button>
+              </div>
 
-                <div className="space-y-4">
-                  {express.map(task => (
-                    <div key={task.id} className="flex items-center gap-6 p-5 hover:bg-slate-50 rounded-3xl transition-all group border border-transparent hover:border-slate-100">
-                        <button onClick={() => {
-                            const newExp = express.map(t => t.id === task.id ? {...t, done: !t.done} : t);
-                            setExpress(newExp);
-                            saveData({ express: newExp });
-                        }}>
-                             {task.done ? <CheckCircle2 size={24} className="text-emerald-500" /> : <Circle size={24} className="text-slate-200" />}
-                        </button>
-                        <div className="flex-1">
-                            <p className={`font-black text-slate-700 ${task.done ? 'line-through text-slate-300' : ''}`}>{task.text}</p>
-                            <span className="text-[10px] font-bold text-slate-400">{task.entry}</span>
-                        </div>
-                        {role === 'admin' && (
-                             <button onClick={() => {
-                                const newExp = express.filter(t => t.id !== task.id);
-                                setExpress(newExp);
-                                saveData({ express: newExp });
-                             }} className="opacity-0 group-hover:opacity-100 text-slate-200 hover:text-rose-500 transition-all">
-                                 <Trash2 size={18}/>
-                             </button>
-                        )}
-                    </div>
-                  ))}
-                  {express.length === 0 && <p className="text-slate-400 text-center py-10">No hay tareas pendientes.</p>}
-                </div>
+              <div className="space-y-3">
+                {express.map(task => (
+                  <ExpressTask key={task.id} task={task} onToggle={() => {
+                    const newExp = express.map(t => t.id === task.id ? {...t, done: !t.done, exit: !t.done ? new Date().toLocaleDateString('es-ES', {day:'2-digit', month:'short'}) : null} : t);
+                    setExpress(newExp);
+                    saveData({ express: newExp });
+                  }} />
+                ))}
               </div>
             </div>
           )}
         </div>
       </main>
-
-      {/* Mobile Nav */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 flex justify-around p-5 z-50 rounded-t-[2.5rem] shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
-          <MobileIcon active={activeTab === 'meta'} icon={<Zap/>} onClick={() => setActiveTab('meta')} />
-          <MobileIcon active={activeTab === 'eventos'} icon={<Calendar/>} onClick={() => setActiveTab('eventos')} />
-          <MobileIcon active={activeTab === 'insumos'} icon={<Package/>} onClick={() => setActiveTab('insumos')} />
-          <MobileIcon active={activeTab === 'express'} icon={<Zap/>} onClick={() => setActiveTab('express')} />
-      </div>
     </div>
   );
 }
 
-// --- SUB-COMPONENTS ---
+// --- COMPONENTS ---
 
 function NavItem({ active, icon, label, onClick }) {
   return (
     <button 
       onClick={onClick}
-      className={`w-full flex items-center gap-5 p-5 rounded-2xl transition-all font-black text-sm ${active ? 'bg-blue-600 text-white shadow-xl shadow-blue-100 translate-x-1' : 'text-slate-400 hover:text-slate-800 hover:bg-slate-50'}`}
+      className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all font-bold ${active ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'text-slate-500 hover:bg-slate-50'}`}
     >
-      {React.cloneElement(icon, { size: 22 })} <span>{label}</span>
+      {icon} <span className="text-sm">{label}</span>
     </button>
   );
 }
 
 function MobileIcon({ active, icon, onClick }) {
   return (
-    <button onClick={onClick} className={`p-3 rounded-2xl transition-all ${active ? 'bg-blue-50 text-blue-600' : 'text-slate-300'}`}>
+    <button onClick={onClick} className={`p-2 rounded-lg ${active ? 'text-blue-600' : 'text-slate-400'}`}>
       {React.cloneElement(icon, { size: 24 })}
     </button>
   );
 }
 
-function MetricCard({ label, value, subtext, icon, color, editing, onChange, isCurrency }) {
+function MetricCard({ label, value, subtext, icon, editing, onChange, isCurrency }) {
   return (
-    <div className="bg-white p-7 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col justify-between h-full group">
-      <div className="flex justify-between items-start mb-6">
-        <div className="space-y-1 w-full">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
-          {editing ? (
-            <input 
-              type="number" 
-              className="w-full text-2xl font-black text-slate-800 border-b-2 border-blue-500 outline-none bg-transparent" 
-              defaultValue={typeof value === 'string' ? value.replace(/[^0-9.]/g, '') : value} 
-              onBlur={e => onChange(parseFloat(e.target.value) || 0)}
-            />
-          ) : (
-            <div className="text-3xl font-black text-slate-800 tracking-tight">{value}</div>
-          )}
-        </div>
-        <div className={`p-3 rounded-2xl group-hover:scale-110 transition-all ${color} shrink-0`}>{icon}</div>
+    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex justify-between items-start">
+      <div className="space-y-2 flex-1">
+        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{label}</span>
+        {editing ? (
+          <input 
+            type="number" 
+            className="w-full text-xl font-black text-slate-800 border-b-2 border-blue-500 outline-none" 
+            defaultValue={typeof value === 'string' ? value.replace(/[^0-9]/g, '') : value} 
+            onChange={e => onChange(parseFloat(e.target.value) || 0)}
+          />
+        ) : (
+          <div className="text-2xl font-black text-slate-800">{value}</div>
+        )}
+        {subtext && <p className="text-[10px] font-bold text-slate-500">{subtext}</p>}
       </div>
-      {subtext && (
-        <div className="pt-4 border-t border-slate-50">
-          <p className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-1">
-            <AlertCircle size={10} className="text-blue-500"/> {subtext}
-          </p>
-        </div>
-      )}
+      <div className="ml-4">{icon}</div>
     </div>
   );
 }
 
-function ChecklistCol({ title, items, color, onUpdate, role }) {
+function ChecklistCol({ title, items, color, onUpdate }) {
   const [input, setInput] = useState('');
-  
-  const toggleItem = (id) => {
-    const newItems = items.map(item => item.id === id ? { ...item, done: !item.done } : item);
-    onUpdate(newItems);
-  };
-
-  const addItem = () => {
-    if (!input) return;
-    const newItems = [...items, { id: Date.now(), text: input, done: false }];
-    onUpdate(newItems);
-    setInput('');
-  };
-
-  const removeItem = (id) => {
-    onUpdate(items.filter(item => item.id !== id));
-  };
-
   return (
-    <div className={`bg-white p-7 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col ${color}`}>
-      <div className="flex justify-between items-center mb-8">
-        <h4 className="font-black text-lg text-slate-800">{title}</h4>
-        <div className="bg-slate-50 text-[10px] font-black text-slate-400 px-3 py-1 rounded-full border border-slate-100">
+    <div className={`bg-white p-5 rounded-2xl border border-slate-100 shadow-sm ${color}`}>
+      <div className="flex justify-between items-center mb-4">
+        <h4 className="font-black text-sm text-slate-800">{title}</h4>
+        <span className="text-[10px] font-black bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
           {items.filter(i => i.done).length}/{items.length}
-        </div>
+        </span>
       </div>
-      <div className="space-y-4 flex-1">
+      <div className="space-y-3 min-h-[100px]">
         {items.map(item => (
-          <div key={item.id} className="flex items-center gap-4 group">
-            <button onClick={() => toggleItem(item.id)}>
-              {item.done ? <CheckCircle2 className="text-blue-500" size={20}/> : <Circle className="text-slate-200" size={20}/>}
+          <div key={item.id} className="flex items-center gap-3 group">
+            <button onClick={() => onUpdate(items.map(i => i.id === item.id ? {...i, done: !i.done} : i))}>
+              {item.done ? <CheckCircle2 size={18} className="text-blue-500" /> : <Circle size={18} className="text-slate-300" />}
             </button>
-            <span className={`text-sm font-bold flex-1 ${item.done ? 'text-slate-300 line-through' : 'text-slate-600'}`}>{item.text}</span>
-            {role === 'admin' && (
-              <button onClick={() => removeItem(item.id)} className="opacity-0 group-hover:opacity-100 text-slate-200 hover:text-rose-500 transition-all">
-                <X size={14}/>
-              </button>
-            )}
+            <span className={`text-sm font-medium flex-1 ${item.done ? 'text-slate-400 line-through' : 'text-slate-600'}`}>{item.text}</span>
           </div>
         ))}
-      </div>
-      {role === 'admin' && (
-        <div className="mt-8 flex gap-2">
+        <div className="flex gap-2 mt-4">
           <input 
-            type="text" 
             value={input}
             onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && addItem()}
-            placeholder="Nueva tarea..." 
-            className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:ring-1 focus:ring-blue-500"
+            placeholder="Nuevo item..." 
+            className="flex-1 text-xs p-2 bg-slate-50 border border-slate-100 rounded-lg outline-none"
+            onKeyDown={e => {
+              if(e.key === 'Enter' && input) {
+                onUpdate([...items, { id: Date.now(), text: input, done: false }]);
+                setInput('');
+              }
+            }}
           />
-          <button onClick={addItem} className="bg-blue-600 text-white p-2 rounded-xl"><Plus size={16}/></button>
+          <button onClick={() => {
+            if(input) {
+              onUpdate([...items, { id: Date.now(), text: input, done: false }]);
+              setInput('');
+            }
+          }} className="text-slate-400 hover:text-blue-500"><Plus size={16}/></button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DriveCarousel({ title, folderId, onLink }) {
+  const [files, setFiles] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [url, setUrl] = useState(folderId || '');
+
+  useEffect(() => {
+    if(folderId) {
+      setLoading(true);
+      fetch(`https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents&fields=files(id,name,thumbnailLink,webContentLink)&key=${DRIVE_API_KEY}`)
+        .then(res => res.json())
+        .then(data => {
+          if(data.files) setFiles(data.files);
+          setLoading(false);
+        }).catch(() => setLoading(false));
+    }
+  }, [folderId]);
+
+  return (
+    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+      <div className="flex items-center justify-between">
+        <h4 className="font-bold text-slate-800 text-sm">{title}</h4>
+      </div>
+      <div className="flex gap-2">
+        <input 
+          className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-1 focus:ring-blue-500" 
+          placeholder="URL o ID de carpeta de Google Drive..."
+          value={url}
+          onChange={e => setUrl(e.target.value)}
+        />
+        <button 
+          onClick={() => {
+            const id = url.includes('folders/') ? url.split('folders/')[1].split('?')[0] : url;
+            onLink(id);
+          }}
+          className="bg-blue-600 text-white px-6 py-2 rounded-xl text-xs font-bold shadow-md shadow-blue-50"
+        >
+          Conectar
+        </button>
+      </div>
+      
+      {loading ? (
+        <div className="py-12 flex justify-center"><Loader2 className="animate-spin text-blue-500" /></div>
+      ) : files.length > 0 ? (
+        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
+          {files.map(f => (
+            <div key={f.id} className="min-w-[120px] aspect-square bg-slate-50 rounded-xl overflow-hidden relative group">
+              {f.thumbnailLink ? <img src={f.thumbnailLink} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ImageIcon className="text-slate-200"/></div>}
+              <a href={f.webContentLink} target="_blank" className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
+                <ExternalLink className="text-white" size={20} />
+              </a>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="py-12 border-2 border-dashed border-slate-100 rounded-3xl flex flex-col items-center justify-center text-slate-300">
+          <FolderOpen size={40} className="mb-2 opacity-10" />
+          <p className="text-[10px] font-black uppercase tracking-widest opacity-30">Ingresa la URL o ID de una carpeta de Drive</p>
         </div>
       )}
     </div>
   );
 }
+
+function EventCard({ ev, onUpdate }) {
+  const [task, setTask] = useState('');
+  const [act, setAct] = useState('');
+  const [price, setPrice] = useState('');
+
+  return (
+    <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-8">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center"><Calendar size={24}/></div>
+          <div>
+            <h4 className="text-2xl font-black text-slate-800">{ev.nombre}</h4>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{ev.fecha}</p>
+          </div>
+        </div>
+        <button className="p-2 text-slate-300 hover:text-rose-500"><Trash2 size={20}/></button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+        <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-100 space-y-6">
+          <div className="flex items-center justify-between">
+            <h5 className="font-bold flex items-center gap-2"><CheckCircle2 size={18} className="text-blue-500"/> Tareas</h5>
+            <span className="bg-white px-3 py-1 rounded-full text-[10px] font-black text-slate-400 border border-slate-100">
+              {ev.tareas.filter(t => t.done).length}/{ev.tareas.length}
+            </span>
+          </div>
+          <div className="space-y-3">
+              {ev.tareas.map((t, idx) => (
+                <div key={idx} className="flex items-center gap-3">
+                  <button onClick={() => onUpdate({...ev, tareas: ev.tareas.map((tt, i) => i === idx ? {...tt, done: !tt.done} : tt)})}>
+                    {t.done ? <CheckCircle2 size={18} className="text-blue-500" /> : <Circle size={18} className="text-slate-300" />}
+                  </button>
+                  <span className={`text-sm font-semibold flex-1 ${t.done ? 'text-slate-400 line-through' : 'text-slate-600'}`}>{t.text}</span>
+                </div>
+              ))}
+              <div className="flex gap-2">
+                 <input className="flex-1 bg-white p-3 rounded-xl border border-slate-200 text-sm font-medium outline-none" placeholder="Nueva tarea..." value={task} onChange={e => setTask(e.target.value)} onKeyDown={e => {
+                   if(e.key === 'Enter' && task) {
+                     onUpdate({...ev, tareas: [...ev.tareas, { text: task, done: false }]});
+                     setTask('');
+                   }
+                 }}/>
+                 <button onClick={() => { if(task) { onUpdate({...ev, tareas: [...ev.tareas, { text: task, done: false }]}); setTask(''); } }} className="bg-white p-3 border border-slate-200 rounded-xl"><Plus size={18}/></button>
+              </div>
+          </div>
+        </div>
+
+        <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-100 space-y-6">
+          <div className="flex items-center justify-between">
+            <h5 className="font-bold flex items-center gap-2"><DollarSign size={18} className="text-amber-500"/> Gastos / Actividades</h5>
+            <span className="bg-white px-3 py-1 rounded-full text-[10px] font-black text-slate-400 border border-slate-100">
+              ${ev.gastos.reduce((a, b) => a + (parseFloat(b.costo) || 0), 0).toLocaleString()}
+            </span>
+          </div>
+          <div className="space-y-3">
+              {ev.gastos.map((g, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-xl shadow-sm">
+                  <span className="text-sm font-bold text-slate-600">{g.text}</span>
+                  <span className="text-sm font-black text-slate-800">${g.costo.toLocaleString()}</span>
+                </div>
+              ))}
+              <div className="flex gap-2">
+                 <input className="flex-1 bg-white p-3 rounded-xl border border-slate-200 text-sm font-medium outline-none" placeholder="Actividad..." value={act} onChange={e => setAct(e.target.value)}/>
+                 <input className="w-24 bg-white p-3 rounded-xl border border-slate-200 text-sm font-medium outline-none" placeholder="$" value={price} onChange={e => setPrice(e.target.value)}/>
+                 <button onClick={() => {
+                   if(act && price) {
+                     onUpdate({...ev, gastos: [...ev.gastos, { text: act, costo: parseFloat(price) }]});
+                     setAct(''); setPrice('');
+                   }
+                 }} className="bg-white p-3 border border-slate-200 rounded-xl"><Plus size={18}/></button>
+              </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InsumoCard({ item }) {
+  const daysLeft = 15; // Mock logic
+  const isVencido = daysLeft <= 0;
+  
+  return (
+    <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group">
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex gap-3">
+          <div className="w-10 h-10 bg-indigo-50 text-indigo-500 rounded-xl flex items-center justify-center"><Package size={20}/></div>
+          <div>
+            <h5 className="font-bold text-slate-800 leading-tight">{item.nombre}</h5>
+            <p className="text-[10px] font-bold text-slate-400">Material Sucursal</p>
+          </div>
+        </div>
+        <button className="text-slate-200 hover:text-slate-400 transition-colors"><MoreHorizontal size={20}/></button>
+      </div>
+      
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+          <Clock size={12}/> {item.sucursal}
+        </div>
+        <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+          <Calendar size={12}/> Renueva: {new Date(item.lastDate).toLocaleDateString()}
+        </div>
+      </div>
+
+      <div className="mt-6 flex justify-between items-center">
+        <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter ${isVencido ? 'bg-rose-100 text-rose-500' : 'bg-blue-100 text-blue-600'}`}>
+          {isVencido ? 'Vencido' : `${daysLeft}d restantes`}
+        </div>
+        <span className="text-[10px] font-bold text-slate-400">Cada {item.dias}d</span>
+      </div>
+    </div>
+  );
+}
+
+function ExpressTask({ task, onToggle }) {
+  return (
+    <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex items-center justify-between group">
+      <div className="flex items-center gap-4">
+        <button onClick={onToggle}>
+          {task.done ? <CheckCircle2 size={24} className="text-emerald-500" /> : <Circle size={24} className="text-slate-200" />}
+        </button>
+        <div>
+          <h5 className={`font-bold transition-all ${task.done ? 'text-slate-300 line-through' : 'text-slate-700'}`}>{task.text}</h5>
+          <div className="flex gap-4 mt-1">
+            <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${task.priority === 'Alta' ? 'bg-rose-50 text-rose-500' : 'bg-slate-50 text-slate-400'}`}>{task.priority}</span>
+            <span className="text-[10px] font-bold text-slate-300">Entrada: {task.entry}</span>
+            {task.exit && <span className="text-[10px] font-bold text-emerald-400">Completada: {task.exit}</span>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Icons
+function UsersIcon({color}) { return <div className={`p-2 rounded-xl ${color}`}><Users size={20}/></div> }
+function TargetIcon({color}) { return <div className={`p-2 rounded-xl ${color}`}><Target size={20}/></div> }
+function MoneyIcon({color}) { return <div className={`p-2 rounded-xl ${color}`}><DollarSign size={20}/></div> }
+function ChartIcon({color}) { return <div className={`p-2 rounded-xl ${color}`}><TrendingUp size={20}/></div> }
