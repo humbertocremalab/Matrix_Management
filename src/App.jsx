@@ -21,9 +21,10 @@ import {
   Image as ImageIcon,
   Loader2,
   X,
-  TrendingUp,
   Target,
-  Users
+  TrendingUp,
+  Store,
+  Layers
 } from 'lucide-react';
 
 // Firebase
@@ -32,662 +33,564 @@ import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, 
 import { getFirestore, doc, setDoc, onSnapshot } from "firebase/firestore";
 
 // --- CONFIG ---
-const DRIVE_API_KEY = "AIzaSyBH8-5rLNM_--UWRMIywOb-m5-UOuzUYUw";
-const firebaseConfig = {
-  apiKey: "AIzaSyCi3nxC2c8Sp4JAs9ylU4uxVagVXToP8HM",
-  authDomain: "accountmatrixhub.firebaseapp.com",
-  projectId: "accountmatrixhub",
-  storageBucket: "accountmatrixhub.firebasestorage.app",
-  messagingSenderId: "912278749399",
-  appId: "1:912278749399:web:f6c4f8f575b01243d2b092"
-};
-
+const firebaseConfig = JSON.parse(__firebase_config);
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'account-matrix-hub';
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'account-matrix-hub-v1';
 
-// --- MAIN APP ---
+// --- MODAL COMPONENT (Custom Popup) ---
+const Modal = ({ isOpen, onClose, title, children }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-300">
+      <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden transform animate-in zoom-in-95 duration-300 border border-white/20">
+        <div className="flex items-center justify-between p-8 border-b border-slate-50">
+          <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">{title}</h3>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400">
+            <X size={24} />
+          </button>
+        </div>
+        <div className="p-8">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [user, setUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('meta');
-  const [isEditingMetrics, setIsEditingMetrics] = useState(false);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [branchTab, setBranchTab] = useState('matriz'); 
   const [loading, setLoading] = useState(true);
-
-  // Estados de datos
-  const [metaData, setMetaData] = useState({
-    metrics: { leads: 145, metaLeads: 200, budget: 15000, spent: 8750 },
-    checklists: {
-      awareness: [{ id: 1, text: 'Creativos de video listos', done: true }, { id: 2, text: 'Segmentación configurada', done: false }],
-      prospeccion: [{ id: 3, text: 'Landing page optimizada', done: true }, { id: 4, text: 'Formulario de contacto activo', done: false }],
-      retargeting: [{ id: 5, text: 'Audiencias personalizadas creadas', done: false }, { id: 6, text: 'Pixel instalado en web', done: true }]
-    },
-    drive: { awareness: '', prospeccion: '', retargeting: '' }
+  
+  // State for business data
+  const [events, setEvents] = useState([]);
+  const [inventory, setInventory] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [metrics, setMetrics] = useState({
+    matriz: { leads: 120, sales: 45, conversion: 37.5 },
+    sucursal1: { leads: 85, sales: 22, conversion: 25.8 },
+    sucursal2: { leads: 94, sales: 31, conversion: 32.9 }
   });
 
-  const [eventos, setEventos] = useState([]);
-  const [insumos, setInsumos] = useState([]);
-  const [express, setExpress] = useState([]);
+  // Modal States
+  const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+  const [isInventoryModalOpen, setIsInventoryModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  
+  // New Item States
+  const [newEvent, setNewEvent] = useState({ title: '', date: '', time: '' });
+  const [newItem, setNewItem] = useState({ name: '', stock: '' });
 
-  // Auth
   useEffect(() => {
     const initAuth = async () => {
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
-      } catch (err) {
-        console.error("Auth error", err);
+      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+        await signInWithCustomToken(auth, __initial_auth_token);
+      } else {
+        await signInAnonymously(auth);
       }
     };
     initAuth();
-    return onAuthStateChanged(auth, setUser);
-  }, []);
-
-  // Sync Firestore
-  useEffect(() => {
-    if (!user) return;
-    const docRef = doc(db, 'artifacts', APP_ID, 'public', 'main_data');
-    const unsubscribe = onSnapshot(docRef, (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data.metaData) setMetaData(data.metaData);
-        if (data.eventos) setEventos(data.eventos);
-        if (data.insumos) setInsumos(data.insumos);
-        if (data.express) setExpress(data.express);
-      }
-      setLoading(false);
-    }, (error) => {
-      console.error("Snapshot error:", error);
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
       setLoading(false);
     });
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'mainStore');
+    const unsub = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.events) setEvents(data.events);
+        if (data.inventory) setInventory(data.inventory);
+        if (data.tasks) setTasks(data.tasks);
+        if (data.metrics) setMetrics(data.metrics);
+      }
+    }, (err) => console.error("Error al obtener datos:", err));
+    return () => unsub();
   }, [user]);
 
   const saveData = async (updates) => {
     if (!user) return;
-    const docRef = doc(db, 'artifacts', APP_ID, 'public', 'main_data');
-    await setDoc(docRef, {
-      metaData, eventos, insumos, express, ...updates
-    }, { merge: true });
+    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'mainStore');
+    const newData = { events, inventory, tasks, metrics, ...updates };
+    await setDoc(docRef, newData);
   };
 
-  if (!user || loading) return (
-    <div className="h-screen flex items-center justify-center bg-slate-50">
-      <Loader2 className="animate-spin text-blue-600" size={40} />
-    </div>
-  );
+  const handleAddEvent = () => {
+    if (!newEvent.title || !newEvent.date) return;
+    const updated = [...events, { ...newEvent, id: Date.now() }];
+    setEvents(updated);
+    saveData({ events: updated });
+    setNewEvent({ title: '', date: '', time: '' });
+    setIsEventModalOpen(false);
+  };
+
+  const handleSaveInventory = () => {
+    if (!newItem.name || !newItem.stock) return;
+    let updated;
+    if (editingItem) {
+      updated = inventory.map(item => item.id === editingItem.id ? { ...newItem, id: item.id } : item);
+    } else {
+      updated = [...inventory, { ...newItem, id: Date.now() }];
+    }
+    setInventory(updated);
+    saveData({ inventory: updated });
+    setNewItem({ name: '', stock: '' });
+    setEditingItem(null);
+    setIsInventoryModalOpen(false);
+  };
+
+  const openEditInventory = (item) => {
+    setEditingItem(item);
+    setNewItem({ name: item.name, stock: item.stock });
+    setIsInventoryModalOpen(true);
+  };
+
+  const toggleTask = (id) => {
+    const updated = tasks.map(t => t.id === id ? { ...t, done: !t.done, exit: !t.done ? new Date().toLocaleTimeString() : null } : t);
+    setTasks(updated);
+    saveData({ tasks: updated });
+  };
+
+  if (loading) {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-white">
+        <div className="relative">
+          <div className="w-20 h-20 border-4 border-slate-100 border-t-indigo-600 rounded-full animate-spin"></div>
+          <Zap className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-indigo-600" size={32} />
+        </div>
+        <h2 className="mt-8 text-xl font-black text-slate-900 uppercase tracking-[0.3em]">Cargando Hub</h2>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex h-screen bg-[#f8fafc] text-slate-800 overflow-hidden font-sans">
-      {/* Sidebar - Desktop */}
-      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-slate-200">
-        <div className="p-6 flex items-center gap-3">
-          <div className="bg-blue-600 p-2 rounded-lg text-white">
-            <LayoutDashboard size={20} />
+    <div className="flex h-screen bg-[#FDFDFD] text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-900 overflow-hidden">
+      
+      {/* Sidebar - Estilo Matrix Hub */}
+      <nav className="w-24 md:w-80 bg-white border-r border-slate-100 flex flex-col items-center py-12 transition-all duration-500 z-10">
+        <div className="mb-16 group flex flex-col items-center px-8 w-full">
+          <div className="w-full aspect-square md:aspect-auto md:h-20 bg-slate-900 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-slate-200 group-hover:scale-105 transition-all duration-500 overflow-hidden relative">
+            <div className="absolute inset-0 bg-gradient-to-tr from-indigo-600/20 to-transparent"></div>
+            <Zap className="text-white fill-white relative z-10" size={32} />
           </div>
-          <div>
-            <h1 className="font-bold text-lg leading-tight">Account</h1>
-            <p className="text-xs text-slate-400">Manager</p>
-          </div>
+          <span className="mt-6 text-[10px] font-black tracking-[0.5em] text-slate-400 uppercase hidden md:block">Matrix Hub</span>
+        </div>
+        
+        <div className="flex flex-col gap-4 w-full px-6">
+          <NavItem active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<LayoutDashboard size={24}/>} label="Dashboard" />
+          <NavItem active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} icon={<Calendar size={24}/>} label="Agenda" />
+          <NavItem active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={24}/>} label="Insumos" />
+          <NavItem active={activeTab === 'marketing'} onClick={() => setActiveTab('marketing')} icon={<Layers size={24}/>} label="Embudo Meta" />
         </div>
 
-        <nav className="flex-1 px-4 space-y-2 mt-4">
-          <NavItem active={activeTab === 'meta'} icon={<Zap size={18}/>} label="Embudo Meta" onClick={() => setActiveTab('meta')} />
-          <NavItem active={activeTab === 'eventos'} icon={<Calendar size={18}/>} label="Eventos" onClick={() => setActiveTab('eventos')} />
-          <NavItem active={activeTab === 'insumos'} icon={<Package size={18}/>} label="Insumos" onClick={() => setActiveTab('insumos')} />
-          <NavItem active={activeTab === 'express'} icon={<Zap size={18}/>} label="Express" onClick={() => setActiveTab('express')} />
-        </nav>
-
-        <div className="p-4 border-t border-slate-100">
-          <button onClick={() => signOut(auth)} className="flex items-center gap-3 w-full p-3 text-slate-500 hover:bg-slate-50 rounded-xl transition-all">
-            <LogOut size={18} /> <span className="text-sm font-medium">Cerrar sesión</span>
-          </button>
+        <div className="mt-auto pb-8 w-full px-8">
+          <div className="bg-slate-50 rounded-[2rem] p-5 flex items-center gap-4 border border-slate-100 group cursor-pointer hover:bg-slate-100 transition-colors">
+            <div className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center text-white font-black shadow-lg">A</div>
+            <div className="hidden md:block overflow-hidden">
+              <p className="text-xs font-black text-slate-900 uppercase truncate tracking-tighter">Admin Account</p>
+              <p className="text-[10px] font-bold text-slate-400">Ver Perfil</p>
+            </div>
+          </div>
         </div>
-      </aside>
+      </nav>
 
-      {/* Mobile Nav */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around p-3 z-50">
-         <MobileIcon active={activeTab === 'meta'} icon={<Zap/>} onClick={() => setActiveTab('meta')} />
-         <MobileIcon active={activeTab === 'eventos'} icon={<Calendar/>} onClick={() => setActiveTab('eventos')} />
-         <MobileIcon active={activeTab === 'insumos'} icon={<Package/>} onClick={() => setActiveTab('insumos')} />
-         <MobileIcon active={activeTab === 'express'} icon={<Zap/>} onClick={() => setActiveTab('express')} />
-      </div>
-
-      {/* Content Area */}
-      <main className="flex-1 overflow-y-auto pb-24 md:pb-0">
-        <div className="max-w-6xl mx-auto p-6 md:p-10">
-          {activeTab === 'meta' && (
-            <div className="space-y-10 animate-in fade-in duration-500">
-              <header className="flex justify-between items-end">
-                <div>
-                  <h2 className="text-3xl font-bold tracking-tight">Embudo Meta</h2>
-                  <p className="text-slate-500 mt-1">Gestiona tus campañas y leads de Meta Ads</p>
-                </div>
-                <button 
-                  onClick={() => {
-                    if (isEditingMetrics) saveData({ metaData });
-                    setIsEditingMetrics(!isEditingMetrics);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-semibold shadow-sm hover:bg-slate-50 transition-all"
-                >
-                  {isEditingMetrics ? <><Save size={16}/> Guardar</> : <><Edit2 size={16}/> Editar</>}
-                </button>
-              </header>
-
-              {/* Métricas Principales */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <MetricCard 
-                  label="Leads Generados" 
-                  value={metaData.metrics.leads} 
-                  icon={<UsersIcon color="bg-blue-50 text-blue-600" />}
-                  editing={isEditingMetrics}
-                  onChange={(v) => setMetaData({...metaData, metrics: {...metaData.metrics, leads: v}})}
-                />
-                <MetricCard 
-                  label="Meta de Leads" 
-                  value={metaData.metrics.metaLeads} 
-                  subtext={`${Math.round((metaData.metrics.leads/metaData.metrics.metaLeads)*100)}% alcanzado`}
-                  icon={<TargetIcon color="bg-emerald-50 text-emerald-600" />}
-                  editing={isEditingMetrics}
-                  onChange={(v) => setMetaData({...metaData, metrics: {...metaData.metrics, metaLeads: v}})}
-                />
-                <MetricCard 
-                  label="Presupuesto" 
-                  value={`$${metaData.metrics.budget.toLocaleString()}`} 
-                  icon={<MoneyIcon color="bg-indigo-50 text-indigo-600" />}
-                  editing={isEditingMetrics}
-                  isCurrency
-                  onChange={(v) => setMetaData({...metaData, metrics: {...metaData.metrics, budget: v}})}
-                />
-                <MetricCard 
-                  label="Gasto" 
-                  value={`$${metaData.metrics.spent.toLocaleString()}`} 
-                  subtext={`${Math.round((metaData.metrics.spent/metaData.metrics.budget)*100)}% usado`}
-                  icon={<ChartIcon color="bg-amber-50 text-amber-600" />}
-                  editing={isEditingMetrics}
-                  isCurrency
-                  onChange={(v) => setMetaData({...metaData, metrics: {...metaData.metrics, spent: v}})}
-                />
-              </div>
-
-              {/* Checklist Embudo */}
-              <div className="space-y-4">
-                <h3 className="font-bold text-lg">Checklist del Embudo</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <ChecklistCol 
-                    title="Awareness" 
-                    items={metaData.checklists.awareness} 
-                    color="border-l-4 border-blue-500"
-                    onUpdate={(items) => {
-                      const newMeta = { ...metaData, checklists: { ...metaData.checklists, awareness: items }};
-                      setMetaData(newMeta);
-                      saveData({ metaData: newMeta });
-                    }}
-                  />
-                  <ChecklistCol 
-                    title="Prospección" 
-                    items={metaData.checklists.prospeccion} 
-                    color="border-l-4 border-emerald-500"
-                    onUpdate={(items) => {
-                      const newMeta = { ...metaData, checklists: { ...metaData.checklists, prospeccion: items }};
-                      setMetaData(newMeta);
-                      saveData({ metaData: newMeta });
-                    }}
-                  />
-                  <ChecklistCol 
-                    title="Retargeting" 
-                    items={metaData.checklists.retargeting} 
-                    color="border-l-4 border-purple-500"
-                    onUpdate={(items) => {
-                      const newMeta = { ...metaData, checklists: { ...metaData.checklists, retargeting: items }};
-                      setMetaData(newMeta);
-                      saveData({ metaData: newMeta });
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Artes del Embudo */}
-              <div className="space-y-6">
-                <h3 className="font-bold text-lg">Artes del Embudo</h3>
-                <div className="space-y-6">
-                  <DriveCarousel 
-                    title="Awareness" 
-                    folderId={metaData.drive.awareness} 
-                    onLink={(id) => {
-                      const newMeta = {...metaData, drive: {...metaData.drive, awareness: id}};
-                      setMetaData(newMeta);
-                      saveData({ metaData: newMeta });
-                    }}
-                  />
-                  <DriveCarousel 
-                    title="Prospección" 
-                    folderId={metaData.drive.prospeccion} 
-                    onLink={(id) => {
-                      const newMeta = {...metaData, drive: {...metaData.drive, prospeccion: id}};
-                      setMetaData(newMeta);
-                      saveData({ metaData: newMeta });
-                    }}
-                  />
-                  <DriveCarousel 
-                    title="Retargeting" 
-                    folderId={metaData.drive.retargeting} 
-                    onLink={(id) => {
-                      const newMeta = {...metaData, drive: {...metaData.drive, retargeting: id}};
-                      setMetaData(newMeta);
-                      saveData({ metaData: newMeta });
-                    }}
-                  />
-                </div>
-              </div>
+      {/* Main Content */}
+      <main className="flex-1 overflow-y-auto p-6 md:p-16 relative">
+        
+        {/* Modals Personalizados */}
+        <Modal isOpen={isEventModalOpen} onClose={() => setIsEventModalOpen(false)} title="Agendar Evento">
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase text-slate-400 ml-1 tracking-widest">Nombre del Evento</label>
+              <input 
+                type="text" 
+                placeholder="Sesión Fotográfica..." 
+                className="w-full p-4 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-indigo-600 font-bold text-slate-800"
+                value={newEvent.title}
+                onChange={(e) => setNewEvent({...newEvent, title: e.target.value})}
+              />
             </div>
-          )}
-
-          {activeTab === 'eventos' && (
-            <div className="space-y-8 animate-in slide-in-from-right duration-500">
-              <header className="flex justify-between items-center">
-                <div>
-                  <h2 className="text-3xl font-bold tracking-tight">Eventos</h2>
-                  <p className="text-slate-500 mt-1">Gestiona tareas y gastos de tus eventos</p>
-                </div>
-                <button 
-                  onClick={() => {
-                    const nombre = prompt('Nombre del evento:');
-                    if(nombre) {
-                      const newEventos = [...eventos, { id: Date.now(), nombre, fecha: new Date().toLocaleDateString(), tareas: [], gastos: [] }];
-                      setEventos(newEventos);
-                      saveData({ eventos: newEventos });
-                    }
-                  }}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all"
-                >
-                  <Plus size={18}/> Nuevo Evento
-                </button>
-              </header>
-
-              <div className="grid grid-cols-1 gap-8">
-                {eventos.length === 0 ? (
-                  <div className="py-20 text-center text-slate-400 font-medium">No hay eventos creados. Selecciona o crea uno para comenzar.</div>
-                ) : (
-                  eventos.map(ev => (
-                    <EventCard key={ev.id} ev={ev} onUpdate={(updated) => {
-                      const newEventos = eventos.map(e => e.id === ev.id ? updated : e);
-                      setEventos(newEventos);
-                      saveData({ eventos: newEventos });
-                    }} onDelete={() => {
-                      if(confirm('¿Eliminar evento?')) {
-                        const newEventos = eventos.filter(e => e.id !== ev.id);
-                        setEventos(newEventos);
-                        saveData({ eventos: newEventos });
-                      }
-                    }} />
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'insumos' && (
-            <div className="space-y-8 animate-in slide-in-from-right duration-500">
-              <header className="flex justify-between items-center">
-                <div>
-                  <h2 className="text-3xl font-bold tracking-tight">Insumos y Renovaciones</h2>
-                  <p className="text-slate-500 mt-1">Control de materiales impresos en sucursal</p>
-                </div>
-                <button 
-                  onClick={() => {
-                    const nombre = prompt('Nombre del material:');
-                    if(nombre) {
-                      const newInsumos = [...insumos, { id: Date.now(), nombre, sucursal: 'Sucursal Centro', dias: 30, lastDate: new Date().toISOString() }];
-                      setInsumos(newInsumos);
-                      saveData({ insumos: newInsumos });
-                    }
-                  }}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all"
-                >
-                  <Plus size={18}/> Agregar
-                </button>
-              </header>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {insumos.map(ins => (
-                  <InsumoCard key={ins.id} item={ins} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'express' && (
-            <div className="space-y-8 animate-in slide-in-from-right duration-500 max-w-3xl">
-              <header>
-                <h2 className="text-3xl font-bold tracking-tight">Tareas Express</h2>
-                <p className="text-slate-500 mt-1">Tareas no planificadas del día a día</p>
-              </header>
-              <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-slate-400 ml-1 tracking-widest">Fecha</label>
                 <input 
-                  id="newExpress"
-                  type="text" 
-                  placeholder="Nueva tarea express..." 
-                  className="flex-1 p-4 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium" 
-                  onKeyDown={e => {
-                    if(e.key === 'Enter') {
-                      const input = e.currentTarget;
-                      if(input.value) {
-                        const newExpress = [...express, { id: Date.now(), text: input.value, entry: new Date().toLocaleDateString('es-ES', {day:'2-digit', month:'short'}), done: false, priority: 'Media' }];
-                        setExpress(newExpress);
-                        saveData({ express: newExpress });
-                        input.value = '';
-                      }
-                    }
-                  }}
+                  type="date" 
+                  className="w-full p-4 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-indigo-600 font-bold text-slate-800"
+                  value={newEvent.date}
+                  onChange={(e) => setNewEvent({...newEvent, date: e.target.value})}
                 />
-                <button onClick={() => {
-                   const input = document.getElementById('newExpress');
-                   if(input && input.value) {
-                    const newExpress = [...express, { id: Date.now(), text: input.value, entry: new Date().toLocaleDateString('es-ES', {day:'2-digit', month:'short'}), done: false, priority: 'Media' }];
-                    setExpress(newExpress);
-                    saveData({ express: newExpress });
-                    input.value = '';
-                   }
-                }} className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-lg shadow-blue-100">Agregar</button>
               </div>
-
-              <div className="space-y-3">
-                {express.map(task => (
-                  <ExpressTask key={task.id} task={task} onToggle={() => {
-                    const newExp = express.map(t => t.id === task.id ? {...t, done: !t.done, exit: !t.done ? new Date().toLocaleDateString('es-ES', {day:'2-digit', month:'short'}) : null} : t);
-                    setExpress(newExp);
-                    saveData({ express: newExp });
-                  }} />
-                ))}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-slate-400 ml-1 tracking-widest">Hora</label>
+                <input 
+                  type="time" 
+                  className="w-full p-4 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-indigo-600 font-bold text-slate-800"
+                  value={newEvent.time}
+                  onChange={(e) => setNewEvent({...newEvent, time: e.target.value})}
+                />
               </div>
             </div>
-          )}
-        </div>
+            <button 
+              onClick={handleAddEvent}
+              className="w-full bg-slate-900 hover:bg-black text-white font-black py-5 rounded-2xl shadow-xl shadow-slate-200 transition-all uppercase tracking-widest text-sm"
+            >
+              Crear Evento
+            </button>
+          </div>
+        </Modal>
+
+        <Modal 
+          isOpen={isInventoryModalOpen} 
+          onClose={() => {setIsInventoryModalOpen(false); setEditingItem(null);}} 
+          title={editingItem ? "Editar Insumo" : "Nuevo Insumo"}
+        >
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase text-slate-400 ml-1 tracking-widest">Descripción</label>
+              <input 
+                type="text" 
+                placeholder="Nombre del insumo..." 
+                className="w-full p-4 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-indigo-600 font-bold text-slate-800"
+                value={newItem.name}
+                onChange={(e) => setNewItem({...newItem, name: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase text-slate-400 ml-1 tracking-widest">Stock Disponible</label>
+              <input 
+                type="number" 
+                placeholder="0" 
+                className="w-full p-4 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-indigo-600 font-bold text-slate-800"
+                value={newItem.stock}
+                onChange={(e) => setNewItem({...newItem, stock: e.target.value})}
+              />
+            </div>
+            <button 
+              onClick={handleSaveInventory}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-5 rounded-2xl shadow-xl shadow-indigo-100 transition-all uppercase tracking-widest text-sm"
+            >
+              {editingItem ? "Actualizar Insumo" : "Añadir a Inventario"}
+            </button>
+          </div>
+        </Modal>
+
+        {/* Header Estilo Premium */}
+        <header className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <span className="h-[2px] w-12 bg-indigo-600"></span>
+              <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.4em]">AccountMatrix Hub</p>
+            </div>
+            <h1 className="text-6xl md:text-7xl font-black text-slate-900 tracking-tighter leading-none">
+              {activeTab === 'dashboard' && "CENTRAL"}
+              {activeTab === 'calendar' && "AGENDA"}
+              {activeTab === 'inventory' && "INSUMOS"}
+              {activeTab === 'marketing' && "META ADS"}
+            </h1>
+          </div>
+          
+          <div className="flex gap-4">
+            <button className="h-16 px-8 bg-white border border-slate-100 rounded-[1.5rem] font-black text-slate-400 hover:text-slate-900 hover:border-slate-300 transition-all flex items-center gap-3 uppercase text-xs tracking-widest shadow-sm">
+              <FolderOpen size={20} />
+              Drive
+            </button>
+            <button 
+              onClick={() => {
+                if (activeTab === 'calendar') setIsEventModalOpen(true);
+                else if (activeTab === 'inventory') setIsInventoryModalOpen(true);
+              }}
+              className="h-16 px-10 bg-slate-900 text-white rounded-[1.5rem] font-black hover:bg-black transition-all shadow-2xl shadow-slate-200 flex items-center gap-3 uppercase text-xs tracking-widest"
+            >
+              <Plus size={24} strokeWidth={3} />
+              Agregar
+            </button>
+          </div>
+        </header>
+
+        {/* Tab Dashboard */}
+        {activeTab === 'dashboard' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+            <div className="lg:col-span-2 space-y-10">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <DashCard title="Agenda Hoy" accent="indigo">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-3xl font-black text-slate-900 tracking-tighter leading-tight">{events[0]?.title || "Nada agendado"}</h4>
+                      <p className="text-sm font-bold text-slate-400 mt-2">{events[0]?.date || "Revisa tu calendario"}</p>
+                    </div>
+                    <div className="w-16 h-16 bg-slate-50 rounded-[1.5rem] flex items-center justify-center text-slate-900">
+                      <Clock size={32} />
+                    </div>
+                  </div>
+                </DashCard>
+                <DashCard title="Inventario" accent="amber">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-3xl font-black text-slate-900 tracking-tighter leading-tight">{inventory.length} Insumos</h4>
+                      <p className="text-sm font-bold text-amber-500 mt-2">Control de Stock</p>
+                    </div>
+                    <div className="w-16 h-16 bg-amber-50 rounded-[1.5rem] flex items-center justify-center text-amber-500">
+                      <Package size={32} />
+                    </div>
+                  </div>
+                </DashCard>
+              </div>
+
+              {/* Tasks */}
+              <div className="bg-white rounded-[3rem] p-12 border border-slate-100 shadow-sm">
+                <div className="flex items-center justify-between mb-10">
+                  <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Checklist de Operación</h3>
+                  <button className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-900 transition-colors"><MoreHorizontal /></button>
+                </div>
+                <div className="space-y-5">
+                  {tasks.length > 0 ? tasks.map(task => (
+                    <TaskItem key={task.id} task={task} onToggle={() => toggleTask(task.id)} />
+                  )) : <div className="py-16 text-center border-2 border-dashed border-slate-100 rounded-[2rem] text-slate-300 font-black uppercase tracking-widest">Sin tareas activas</div>}
+                </div>
+              </div>
+            </div>
+
+            {/* Sidebar Dash */}
+            <div className="space-y-10">
+              <div className="bg-slate-900 rounded-[3rem] p-12 text-white shadow-2xl relative overflow-hidden group">
+                <div className="absolute -right-10 -top-10 w-48 h-48 bg-indigo-600/30 rounded-full blur-3xl"></div>
+                <h3 className="text-indigo-400 text-[10px] font-black uppercase tracking-[0.5em] mb-6">Ingresos / Mes</h3>
+                <div className="flex items-baseline gap-3 mb-4">
+                  <span className="text-5xl font-black tracking-tighter">$45.2k</span>
+                  <span className="text-emerald-400 text-sm font-black">+12%</span>
+                </div>
+                <p className="text-slate-400 text-xs font-bold leading-relaxed max-w-[200px]">Rendimiento actual basado en sucursales matriz.</p>
+                <button className="mt-12 w-full py-5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl font-black text-[10px] tracking-[0.3em] uppercase transition-all flex items-center justify-center gap-3">
+                  Reporte <ExternalLink size={14} />
+                </button>
+              </div>
+
+              <div className="bg-white rounded-[3rem] p-10 border border-slate-100 shadow-sm">
+                <h3 className="text-xs font-black text-slate-900 uppercase tracking-[0.3em] mb-8">Actividad</h3>
+                <div className="space-y-8">
+                  <ActivityItem label="Stock Actualizado" time="Hace 2h" color="bg-indigo-600" />
+                  <ActivityItem label="Nueva Venta Matriz" time="Hace 5h" color="bg-emerald-500" />
+                  <ActivityItem label="Agenda Modificada" time="Ayer" color="bg-amber-500" />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab Calendario */}
+        {activeTab === 'calendar' && (
+          <div className="bg-white rounded-[3rem] p-12 border border-slate-100 shadow-sm">
+            <div className="flex items-center justify-between mb-12">
+              <div className="flex items-center gap-6">
+                <h3 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">Abril 2026</h3>
+                <div className="flex gap-2">
+                  <button className="w-12 h-12 bg-slate-50 hover:bg-slate-100 rounded-2xl transition-all flex items-center justify-center"><ChevronLeft size={20}/></button>
+                  <button className="w-12 h-12 bg-slate-50 hover:bg-slate-100 rounded-2xl transition-all flex items-center justify-center"><ChevronRight size={20}/></button>
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-7 gap-6 mb-6">
+              {['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'].map(d => (
+                <div key={d} className="text-[10px] font-black text-slate-300 uppercase tracking-widest text-center">{d}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-6">
+               {Array.from({length: 30}).map((_, i) => (
+                 <div key={i} className="aspect-square border border-slate-50 rounded-[1.5rem] p-4 hover:bg-slate-50 transition-all cursor-pointer group relative">
+                    <span className="text-lg font-black text-slate-300 group-hover:text-slate-900">{i+1}</span>
+                    {events.some(e => e.date.includes(`-${String(i+1).padStart(2, '0')}`)) && (
+                      <div className="absolute bottom-4 right-4 w-2 h-2 bg-indigo-600 rounded-full"></div>
+                    )}
+                 </div>
+               ))}
+            </div>
+            <div className="mt-16 space-y-4">
+               <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.3em] mb-6">Eventos Próximos</h4>
+               {events.map(event => (
+                 <div key={event.id} className="flex items-center justify-between p-6 bg-slate-50 rounded-[2rem] border border-transparent hover:border-slate-100 transition-all">
+                    <div className="flex items-center gap-6">
+                       <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm"><Calendar size={24}/></div>
+                       <div>
+                          <p className="font-black text-slate-900 uppercase tracking-tighter text-lg">{event.title}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{event.date} • {event.time || 'Horario pendiente'}</p>
+                       </div>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        const updated = events.filter(e => e.id !== event.id);
+                        setEvents(updated);
+                        saveData({ events: updated });
+                      }}
+                      className="w-10 h-10 flex items-center justify-center text-slate-300 hover:text-rose-500 transition-colors"
+                    >
+                      <Trash2 size={20}/>
+                    </button>
+                 </div>
+               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Tab Inventario */}
+        {activeTab === 'inventory' && (
+          <div className="bg-white rounded-[3.5rem] p-12 border border-slate-100 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-10 mb-16">
+               <div className="space-y-1">
+                  <h3 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">Listado de Insumos</h3>
+                  <p className="text-sm font-bold text-slate-400">Control de activos y materiales.</p>
+               </div>
+               <div className="relative w-full md:w-96">
+                  <input type="text" placeholder="Buscar..." className="w-full pl-16 pr-8 py-5 bg-slate-50 rounded-3xl border-none focus:ring-2 focus:ring-indigo-600 font-bold text-sm" />
+                  <Package className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300" size={24} />
+               </div>
+            </div>
+
+            <div className="overflow-x-auto">
+               <table className="w-full">
+                  <thead>
+                     <tr className="border-b border-slate-50">
+                        <th className="pb-8 text-[10px] font-black text-slate-300 uppercase tracking-[0.4em] text-left">Ref</th>
+                        <th className="pb-8 text-[10px] font-black text-slate-300 uppercase tracking-[0.4em] text-left">Insumo</th>
+                        <th className="pb-8 text-[10px] font-black text-slate-300 uppercase tracking-[0.4em] text-left">Status</th>
+                        <th className="pb-8 text-[10px] font-black text-slate-300 uppercase tracking-[0.4em] text-left">Stock</th>
+                        <th className="pb-8 text-[10px] font-black text-slate-300 uppercase tracking-[0.4em] text-right">Acción</th>
+                     </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                     {inventory.map((item, idx) => (
+                        <tr key={item.id} className="group hover:bg-slate-50/50 transition-colors">
+                           <td className="py-8 font-black text-slate-400 text-[10px]">#00{idx+1}</td>
+                           <td className="py-8">
+                              <span className="font-black text-slate-900 uppercase tracking-tighter text-lg">{item.name}</span>
+                           </td>
+                           <td className="py-8">
+                              <span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${parseInt(item.stock) > 5 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
+                                 {parseInt(item.stock) > 5 ? 'Disponible' : 'Crítico'}
+                              </span>
+                           </td>
+                           <td className="py-8">
+                              <div className="flex items-center gap-3">
+                                 <span className="text-2xl font-black text-slate-900 leading-none">{item.stock}</span>
+                                 <span className="text-[10px] font-black text-slate-300 uppercase">Unid.</span>
+                              </div>
+                           </td>
+                           <td className="py-8 text-right">
+                              <button 
+                                onClick={() => openEditInventory(item)}
+                                className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-slate-300 hover:text-indigo-600 border border-slate-100 hover:border-indigo-100 transition-all ml-auto"
+                              >
+                                <MoreHorizontal size={24} />
+                              </button>
+                           </td>
+                        </tr>
+                     ))}
+                  </tbody>
+               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Tab Marketing / Embudo Meta */}
+        {activeTab === 'marketing' && (
+          <div className="space-y-12">
+            {/* Branch Selection Tabs */}
+            <div className="flex gap-3 p-2 bg-white border border-slate-100 rounded-[2rem] w-fit shadow-sm">
+              {['matriz', 'sucursal1', 'sucursal2'].map((branch) => (
+                <button 
+                  key={branch}
+                  onClick={() => setBranchTab(branch)}
+                  className={`px-10 py-4 rounded-[1.5rem] font-black text-[10px] uppercase tracking-[0.3em] transition-all ${branchTab === branch ? 'bg-slate-900 text-white shadow-2xl' : 'text-slate-400 hover:text-slate-900'}`}
+                >
+                  {branch === 'matriz' ? 'Sede Central' : branch.toUpperCase()}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+              <MarketingMetric 
+                label="Leads Meta" 
+                value={metrics[branchTab].leads} 
+                sub="Adquisición"
+                icon={<Target size={28} />}
+                color="text-indigo-600"
+                bg="bg-indigo-50"
+              />
+              <MarketingMetric 
+                label="Conversiones" 
+                value={metrics[branchTab].sales} 
+                sub="Ventas"
+                icon={<TrendingUp size={28} />}
+                color="text-emerald-600"
+                bg="bg-emerald-50"
+              />
+              <MarketingMetric 
+                label="ROI Ratio" 
+                value={`${metrics[branchTab].conversion}%`} 
+                sub="Eficiencia"
+                icon={<Zap size={28} />}
+                color="text-amber-600"
+                bg="bg-amber-50"
+              />
+            </div>
+
+            <div className="bg-white rounded-[3.5rem] p-16 border border-slate-100 shadow-sm overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-slate-50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 opacity-50"></div>
+              <h3 className="text-3xl font-black text-slate-900 uppercase tracking-tighter mb-16 relative z-10">Performance Funnel: {branchTab}</h3>
+              <div className="space-y-8 max-w-3xl mx-auto relative z-10">
+                <FunnelLayer label="Alcance Facebook/Insta" value="15.4k" width="w-full" color="bg-slate-900" />
+                <FunnelLayer label="Click-through" value="2,100" width="w-[85%]" color="bg-indigo-600" />
+                <FunnelLayer label="Contactos" value={metrics[branchTab].leads} width="w-[60%]" color="bg-indigo-500" />
+                <FunnelLayer label="Conversión Final" value={metrics[branchTab].sales} width="w-[30%]" color="bg-emerald-500" />
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
 }
 
-// --- COMPONENTS ---
-
+// Sub-components estilizados Matrix Hub
 function NavItem({ active, icon, label, onClick }) {
   return (
     <button 
       onClick={onClick}
-      className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all font-bold ${active ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'text-slate-500 hover:bg-slate-50'}`}
+      className={`flex items-center gap-6 px-8 py-5 rounded-[1.75rem] transition-all duration-500 w-full group ${active ? 'bg-slate-900 text-white shadow-2xl translate-x-3 scale-105' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-50'}`}
     >
-      {icon} <span className="text-sm">{label}</span>
+      <div className={`transition-transform duration-500 ${active ? 'scale-110' : 'group-hover:scale-110'}`}>{icon}</div>
+      <span className="font-black text-[10px] uppercase tracking-[0.2em] hidden md:block whitespace-nowrap">{label}</span>
     </button>
   );
 }
 
-function MobileIcon({ active, icon, onClick }) {
+function DashCard({ title, children, accent }) {
   return (
-    <button onClick={onClick} className={`p-2 rounded-lg ${active ? 'text-blue-600' : 'text-slate-400'}`}>
-      {React.cloneElement(icon, { size: 24 })}
-    </button>
-  );
-}
-
-function MetricCard({ label, value, subtext, icon, editing, onChange, isCurrency }) {
-  return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex justify-between items-start">
-      <div className="space-y-2 flex-1">
-        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{label}</span>
-        {editing ? (
-          <input 
-            type="number" 
-            className="w-full text-xl font-black text-slate-800 border-b-2 border-blue-500 outline-none" 
-            defaultValue={typeof value === 'string' ? value.replace(/[^0-9]/g, '') : value} 
-            onChange={e => onChange(parseFloat(e.target.value) || 0)}
-          />
-        ) : (
-          <div className="text-2xl font-black text-slate-800">{value}</div>
-        )}
-        {subtext && <p className="text-[10px] font-bold text-slate-500">{subtext}</p>}
-      </div>
-      <div className="ml-4">{icon}</div>
+    <div className="bg-white rounded-[3rem] p-10 border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-500">
+      <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.4em] mb-4">{title}</p>
+      {children}
     </div>
   );
 }
 
-function ChecklistCol({ title, items, color, onUpdate }) {
-  const [input, setInput] = useState('');
+function TaskItem({ task, onToggle }) {
   return (
-    <div className={`bg-white p-5 rounded-2xl border border-slate-100 shadow-sm ${color}`}>
-      <div className="flex justify-between items-center mb-4">
-        <h4 className="font-black text-sm text-slate-800">{title}</h4>
-        <span className="text-[10px] font-black bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
-          {items.filter(i => i.done).length}/{items.length}
-        </span>
-      </div>
-      <div className="space-y-3 min-h-[100px]">
-        {items.map(item => (
-          <div key={item.id} className="flex items-center gap-3 group">
-            <button onClick={() => onUpdate(items.map(i => i.id === item.id ? {...i, done: !i.done} : i))}>
-              {item.done ? <CheckCircle2 size={18} className="text-blue-500" /> : <Circle size={18} className="text-slate-300" />}
-            </button>
-            <span className={`text-sm font-medium flex-1 ${item.done ? 'text-slate-400 line-through' : 'text-slate-600'}`}>{item.text}</span>
-          </div>
-        ))}
-        <div className="flex gap-2 mt-4">
-          <input 
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            placeholder="Nuevo item..." 
-            className="flex-1 text-xs p-2 bg-slate-50 border border-slate-100 rounded-lg outline-none"
-            onKeyDown={e => {
-              if(e.key === 'Enter' && input) {
-                onUpdate([...items, { id: Date.now(), text: input, done: false }]);
-                setInput('');
-              }
-            }}
-          />
-          <button onClick={() => {
-            if(input) {
-              onUpdate([...items, { id: Date.now(), text: input, done: false }]);
-              setInput('');
-            }
-          }} className="text-slate-400 hover:text-blue-500"><Plus size={16}/></button>
+    <div className={`p-6 rounded-[2rem] border transition-all duration-300 flex items-center justify-between group cursor-pointer ${task.done ? 'bg-slate-50 border-transparent opacity-60' : 'bg-white border-slate-100 hover:border-indigo-100 hover:shadow-lg hover:shadow-indigo-50/20'}`} onClick={onToggle}>
+      <div className="flex items-center gap-6">
+        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${task.done ? 'bg-indigo-600 text-white scale-90' : 'bg-slate-50 text-slate-300 group-hover:bg-indigo-50 group-hover:text-indigo-400'}`}>
+          {task.done ? <CheckCircle2 size={24} strokeWidth={3} /> : <Circle size={24} strokeWidth={2} />}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function DriveCarousel({ title, folderId, onLink }) {
-  const [files, setFiles] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [url, setUrl] = useState(folderId || '');
-
-  useEffect(() => {
-    if(folderId) {
-      setLoading(true);
-      fetch(`https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents&fields=files(id,name,thumbnailLink,webContentLink)&key=${DRIVE_API_KEY}`)
-        .then(res => res.json())
-        .then(data => {
-          if(data.files) setFiles(data.files);
-          setLoading(false);
-        }).catch(() => setLoading(false));
-    }
-  }, [folderId]);
-
-  return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-      <div className="flex items-center justify-between">
-        <h4 className="font-bold text-slate-800 text-sm">{title}</h4>
-      </div>
-      <div className="flex gap-2">
-        <input 
-          className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-1 focus:ring-blue-500" 
-          placeholder="URL o ID de carpeta de Google Drive..."
-          value={url}
-          onChange={e => setUrl(e.target.value)}
-        />
-        <button 
-          onClick={() => {
-            const id = url.includes('folders/') ? url.split('folders/')[1].split('?')[0] : url;
-            onLink(id);
-          }}
-          className="bg-blue-600 text-white px-6 py-2 rounded-xl text-xs font-bold shadow-md shadow-blue-50"
-        >
-          Conectar
-        </button>
-      </div>
-      
-      {loading ? (
-        <div className="py-12 flex justify-center"><Loader2 className="animate-spin text-blue-500" /></div>
-      ) : files.length > 0 ? (
-        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
-          {files.map(f => (
-            <div key={f.id} className="min-w-[120px] aspect-square bg-slate-50 rounded-xl overflow-hidden relative group">
-              {f.thumbnailLink ? <img src={f.thumbnailLink} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ImageIcon className="text-slate-200"/></div>}
-              <a href={f.webContentLink} target="_blank" className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
-                <ExternalLink className="text-white" size={20} />
-              </a>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="py-12 border-2 border-dashed border-slate-100 rounded-3xl flex flex-col items-center justify-center text-slate-300">
-          <FolderOpen size={40} className="mb-2 opacity-10" />
-          <p className="text-[10px] font-black uppercase tracking-widest opacity-30">Ingresa la URL o ID de una carpeta de Drive</p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function EventCard({ ev, onUpdate, onDelete }) {
-  const [task, setTask] = useState('');
-  const [act, setAct] = useState('');
-  const [price, setPrice] = useState('');
-
-  return (
-    <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-8">
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center"><Calendar size={24}/></div>
-          <div>
-            <h4 className="text-2xl font-black text-slate-800">{ev.nombre}</h4>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{ev.fecha}</p>
-          </div>
-        </div>
-        <button onClick={onDelete} className="p-2 text-slate-300 hover:text-rose-500"><Trash2 size={20}/></button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-        <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-100 space-y-6">
-          <div className="flex items-center justify-between">
-            <h5 className="font-bold flex items-center gap-2"><CheckCircle2 size={18} className="text-blue-500"/> Tareas</h5>
-            <span className="bg-white px-3 py-1 rounded-full text-[10px] font-black text-slate-400 border border-slate-100">
-              {ev.tareas.filter(t => t.done).length}/{ev.tareas.length}
-            </span>
-          </div>
-          <div className="space-y-3">
-             {ev.tareas.map((t, idx) => (
-               <div key={idx} className="flex items-center gap-3">
-                 <button onClick={() => onUpdate({...ev, tareas: ev.tareas.map((tt, i) => i === idx ? {...tt, done: !tt.done} : tt)})}>
-                   {t.done ? <CheckCircle2 size={18} className="text-blue-500" /> : <Circle size={18} className="text-slate-300" />}
-                 </button>
-                 <span className={`text-sm font-semibold flex-1 ${t.done ? 'text-slate-400 line-through' : 'text-slate-600'}`}>{t.text}</span>
-               </div>
-             ))}
-             <div className="flex gap-2">
-                <input className="flex-1 bg-white p-3 rounded-xl border border-slate-200 text-sm font-medium outline-none" placeholder="Nueva tarea..." value={task} onChange={e => setTask(e.target.value)} onKeyDown={e => {
-                  if(e.key === 'Enter' && task) {
-                    onUpdate({...ev, tareas: [...ev.tareas, { text: task, done: false }]});
-                    setTask('');
-                  }
-                }}/>
-                <button onClick={() => { if(task) { onUpdate({...ev, tareas: [...ev.tareas, { text: task, done: false }]}); setTask(''); } }} className="bg-white p-3 border border-slate-200 rounded-xl"><Plus size={18}/></button>
-             </div>
-          </div>
-        </div>
-
-        <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-100 space-y-6">
-          <div className="flex items-center justify-between">
-            <h5 className="font-bold flex items-center gap-2"><DollarSign size={18} className="text-amber-500"/> Gastos / Actividades</h5>
-            <span className="bg-white px-3 py-1 rounded-full text-[10px] font-black text-slate-400 border border-slate-100">
-              ${ev.gastos.reduce((a, b) => a + (parseFloat(b.costo) || 0), 0).toLocaleString()}
-            </span>
-          </div>
-          <div className="space-y-3">
-             {ev.gastos.map((g, idx) => (
-               <div key={idx} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-xl shadow-sm">
-                 <span className="text-sm font-bold text-slate-600">{g.text}</span>
-                 <span className="text-sm font-black text-slate-800">${parseFloat(g.costo).toLocaleString()}</span>
-               </div>
-             ))}
-             <div className="flex gap-2">
-                <input className="flex-1 bg-white p-3 rounded-xl border border-slate-200 text-sm font-medium outline-none" placeholder="Actividad..." value={act} onChange={e => setAct(e.target.value)}/>
-                <input className="w-24 bg-white p-3 rounded-xl border border-slate-200 text-sm font-medium outline-none" placeholder="$" value={price} onChange={e => setPrice(e.target.value)}/>
-                <button onClick={() => {
-                  if(act && price) {
-                    onUpdate({...ev, gastos: [...ev.gastos, { text: act, costo: parseFloat(price) }]});
-                    setAct(''); setPrice('');
-                  }
-                }} className="bg-white p-3 border border-slate-200 rounded-xl"><Plus size={18}/></button>
-             </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function InsumoCard({ item }) {
-  const daysLeft = 15; // Mock logic
-  const isVencido = daysLeft <= 0;
-  
-  return (
-    <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group">
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex gap-3">
-          <div className="w-10 h-10 bg-indigo-50 text-indigo-500 rounded-xl flex items-center justify-center"><Package size={20}/></div>
-          <div>
-            <h5 className="font-bold text-slate-800 leading-tight">{item.nombre}</h5>
-            <p className="text-[10px] font-bold text-slate-400">Material</p>
-          </div>
-        </div>
-        <button className="text-slate-200 hover:text-slate-400 transition-colors"><MoreHorizontal size={20}/></button>
-      </div>
-      
-      <div className="space-y-3">
-        <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
-          <Clock size={12}/> {item.sucursal}
-        </div>
-        <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
-          <Calendar size={12}/> Renueva: {new Date(item.lastDate).toLocaleDateString()}
-        </div>
-      </div>
-
-      <div className="mt-6 flex justify-between items-center">
-        <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter ${isVencido ? 'bg-rose-100 text-rose-500' : 'bg-blue-100 text-blue-600'}`}>
-          {isVencido ? 'Vencido' : `${daysLeft}d restantes`}
-        </div>
-        <span className="text-[10px] font-bold text-slate-400">Cada {item.dias}d</span>
-      </div>
-    </div>
-  );
-}
-
-function ExpressTask({ task, onToggle }) {
-  return (
-    <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex items-center justify-between group">
-      <div className="flex items-center gap-4">
-        <button onClick={onToggle}>
-          {task.done ? <CheckCircle2 size={24} className="text-emerald-500" /> : <Circle size={24} className="text-slate-200" />}
-        </button>
         <div>
-          <h5 className={`font-bold transition-all ${task.done ? 'text-slate-300 line-through' : 'text-slate-700'}`}>{task.text}</h5>
-          <div className="flex gap-4 mt-1">
-            <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${task.priority === 'Alta' ? 'bg-rose-50 text-rose-500' : 'bg-slate-50 text-slate-400'}`}>{task.priority}</span>
-            <span className="text-[10px] font-bold text-slate-300">Entrada: {task.entry}</span>
-            {task.exit && <span className="text-[10px] font-bold text-emerald-400">Completada: {task.exit}</span>}
+          <h5 className={`text-lg font-black tracking-tighter uppercase transition-all ${task.done ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{task.text}</h5>
+          <div className="flex gap-4 mt-2">
+            <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest ${task.priority === 'Alta' ? 'bg-rose-50 text-rose-500' : 'bg-slate-100 text-slate-400'}`}>{task.priority}</span>
+            <span className="text-[10px] font-bold text-slate-300 uppercase">Ref: {task.entry}</span>
           </div>
         </div>
       </div>
@@ -695,8 +598,41 @@ function ExpressTask({ task, onToggle }) {
   );
 }
 
-// Icons
-function UsersIcon({color}) { return <div className={`p-2 rounded-xl ${color}`}><Users size={20}/></div> }
-function TargetIcon({color}) { return <div className={`p-2 rounded-xl ${color}`}><Target size={20}/></div> }
-function MoneyIcon({color}) { return <div className={`p-2 rounded-xl ${color}`}><DollarSign size={20}/></div> }
-function ChartIcon({color}) { return <div className={`p-2 rounded-xl ${color}`}><TrendingUp size={20}/></div> }
+function ActivityItem({ label, time, color }) {
+  return (
+    <div className="flex items-center gap-5 group">
+      <div className={`w-3 h-3 rounded-full ${color} shadow-lg ring-4 ring-transparent group-hover:ring-slate-50 transition-all`}></div>
+      <div className="flex-1 border-b border-slate-50 pb-4 group-last:border-none">
+        <p className="text-xs font-black text-slate-900 uppercase tracking-tight leading-none mb-1">{label}</p>
+        <p className="text-[10px] font-bold text-slate-300 uppercase">{time}</p>
+      </div>
+    </div>
+  );
+}
+
+function MarketingMetric({ label, value, icon, sub, color, bg }) {
+  return (
+    <div className="bg-white rounded-[3rem] p-10 border border-slate-100 shadow-sm group hover:scale-105 transition-all duration-500">
+      <div className="flex items-center justify-between mb-8">
+        <div className={`w-16 h-16 ${bg} ${color} rounded-[1.5rem] flex items-center justify-center shadow-sm`}>{icon}</div>
+        <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{sub}</span>
+      </div>
+      <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-2">{label}</p>
+      <h4 className="text-5xl font-black text-slate-900 tracking-tighter">{value}</h4>
+    </div>
+  );
+}
+
+function FunnelLayer({ label, value, width, color }) {
+  return (
+    <div className="group">
+      <div className="flex justify-between items-end mb-3">
+        <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] group-hover:text-slate-900 transition-colors">{label}</span>
+        <span className="text-xl font-black text-slate-900 leading-none">{value}</span>
+      </div>
+      <div className="h-6 bg-slate-50 rounded-2xl overflow-hidden shadow-inner border border-slate-100">
+        <div className={`h-full ${color} ${width} rounded-r-2xl transition-all duration-1000 ease-out group-hover:brightness-110 shadow-lg`}></div>
+      </div>
+    </div>
+  );
+}
