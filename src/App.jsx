@@ -5,46 +5,46 @@ import {
   Package, 
   Zap, 
   Plus, 
-  MoreHorizontal, 
   CheckCircle2, 
   Circle, 
-  ChevronLeft, 
-  ChevronRight, 
-  ExternalLink,
-  Edit2,
-  Save,
-  Trash2,
-  Clock,
-  DollarSign,
-  LogOut,
-  FolderOpen,
-  ImageIcon,
-  Loader2,
-  X,
-  AlertCircle,
-  ChevronDown,
-  User as UserIcon,
-  Lock,
-  Target,
-  Users
+  Edit2, 
+  Save, 
+  Trash2, 
+  Clock, 
+  DollarSign, 
+  LogOut, 
+  Loader2, 
+  X, 
+  AlertCircle, 
+  ChevronDown, 
+  User as UserIcon, 
+  Lock, 
+  Target, 
+  Users,
+  ExternalLink
 } from 'lucide-react';
 
 // Firebase
 import { initializeApp } from "firebase/app";
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut, signInWithEmailAndPassword } from "firebase/auth";
-import { getFirestore, doc, setDoc, onSnapshot, updateDoc, getDoc, collection } from "firebase/firestore";
+import { 
+  getAuth, 
+  signInAnonymously, 
+  signInWithCustomToken, 
+  onAuthStateChanged, 
+  signOut, 
+  signInWithEmailAndPassword 
+} from "firebase/auth";
+import { 
+  getFirestore, 
+  doc, 
+  setDoc, 
+  onSnapshot, 
+  getDoc, 
+  collection 
+} from "firebase/firestore";
 
 // --- CONFIG ---
-const DRIVE_API_KEY = ""; // El entorno inyectará la clave necesaria
-const firebaseConfig = {
-  apiKey: "AIzaSyCi3nxC2c8Sp4JAs9ylU4uxVagVXToP8HM",
-  authDomain: "accountmatrixhub.firebaseapp.com",
-  projectId: "accountmatrixhub",
-  storageBucket: "accountmatrixhub.firebasestorage.app",
-  messagingSenderId: "912278749399",
-  appId: "1:912278749399:web:f6c4f8f575b01243d2b092"
-};
-
+const firebaseConfig = JSON.parse(__firebase_config);
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -53,18 +53,16 @@ const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'account-matrix-hub'
 // --- MAIN APP ---
 export default function App() {
   const [user, setUser] = useState(null);
-  const [role, setRole] = useState('user'); // 'admin' o 'user'
+  const [role, setRole] = useState('user'); 
   const [activeTab, setActiveTab] = useState('meta');
   const [isEditingMetrics, setIsEditingMetrics] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPass, setLoginPass] = useState('');
   const [authError, setAuthError] = useState('');
-  
-  // Sucursal seleccionada en Meta
   const [selectedBranch, setSelectedBranch] = useState('Monterrey');
 
-  // Estados de datos iniciales (se sobrescriben con Firestore)
+  // Estados de datos
   const [metaData, setMetaData] = useState({
     branches: {
       'Monterrey': { leads: 145, metaLeads: 200, budget: 15000, spent: 8750 },
@@ -86,20 +84,26 @@ export default function App() {
   // Auth Effect
   useEffect(() => {
     const initAuth = async () => {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-            await signInWithCustomToken(auth, __initial_auth_token);
-        }
+      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+        try { await signInWithCustomToken(auth, __initial_auth_token); } catch(e) { console.error(e); }
+      }
     };
     initAuth();
 
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       if (u) {
         setUser(u);
-        const userDoc = await getDoc(doc(db, 'artifacts', APP_ID, 'users', u.uid));
-        if (userDoc.exists()) {
-          setRole(userDoc.data().role || 'user');
-        } else {
-          setRole('admin'); 
+        // Regla 1: Ruta de documento privada para el rol
+        const userDocRef = doc(db, 'artifacts', APP_ID, 'users', u.uid, 'profile', 'info');
+        try {
+          const userDoc = await getDoc(userDocRef);
+          if (userDoc.exists()) {
+            setRole(userDoc.data().role || 'user');
+          } else {
+            setRole('admin'); 
+          }
+        } catch (e) {
+          setRole('admin');
         }
       } else {
         setUser(null);
@@ -109,10 +113,13 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Sync Firestore
+  // Sync Firestore - CORRECCIÓN DE RUTA (Regla 1: 6 segmentos)
   useEffect(() => {
     if (!user) return;
-    const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'main_data');
+    
+    // Cambiamos a una ruta de documento válida: artifacts/{id}/public/data/{coleccion}/{docId}
+    const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'main_data', 'current');
+    
     const unsub = onSnapshot(docRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
@@ -121,13 +128,15 @@ export default function App() {
         if (data.insumos) setInsumos(data.insumos || []);
         if (data.express) setExpress(data.express || []);
       }
-    }, (err) => console.error("Firestore Error:", err));
+    }, (err) => {
+      console.error("Firestore Error details:", err);
+    });
     return () => unsub();
   }, [user]);
 
   const saveData = async (updates) => {
-    if (role !== 'admin') return; 
-    const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'main_data');
+    if (role !== 'admin' || !user) return; 
+    const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'main_data', 'current');
     try {
         await setDoc(docRef, {
             metaData, eventos, insumos, express, ...updates
@@ -148,7 +157,7 @@ export default function App() {
         await signInWithEmailAndPassword(auth, loginEmail, loginPass);
       }
     } catch (err) {
-      setAuthError('Credenciales incorrectas');
+      setAuthError('Credenciales incorrectas o error de conexión');
       setLoading(false);
     }
   };
@@ -211,7 +220,7 @@ export default function App() {
     </div>
   );
 
-  const currentMetrics = metaData.branches[selectedBranch] || { leads:0, metaLeads:1, budget:0, spent:0 };
+  const currentMetrics = metaData.branches[selectedBranch] || { leads: 0, metaLeads: 1, budget: 0, spent: 0 };
 
   return (
     <div className="flex h-screen bg-[#f8fafc] text-slate-800 overflow-hidden font-sans">
@@ -236,15 +245,15 @@ export default function App() {
 
         <div className="p-6 border-t border-slate-50 space-y-4">
           <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 rounded-2xl">
-            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
-              {role === 'admin' ? 'AD' : 'US'}
+            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold uppercase text-xs">
+              {role.substring(0, 2)}
             </div>
             <div>
               <p className="text-sm font-black text-slate-800 capitalize">{role}</p>
               <p className="text-[10px] font-bold text-slate-400 uppercase">Sesión activa</p>
             </div>
           </div>
-          <button onClick={() => signOut(auth)} className="flex items-center gap-3 w-full p-4 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all font-bold text-sm">
+          <button onClick={() => signOut(auth)} className="flex items-center gap-3 w-full p-4 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all font-bold text-sm text-left">
             <LogOut size={18} /> <span>Cerrar sesión</span>
           </button>
         </div>
@@ -266,7 +275,7 @@ export default function App() {
                 </div>
                 
                 <div className="flex items-center gap-3">
-                  <div className="relative group">
+                  <div className="relative">
                     <select 
                       value={selectedBranch}
                       onChange={(e) => setSelectedBranch(e.target.value)}
@@ -293,7 +302,6 @@ export default function App() {
                 </div>
               </header>
 
-              {/* Métricas Principales */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <MetricCard 
                   label="Leads Generados" 
@@ -345,7 +353,6 @@ export default function App() {
                 />
               </div>
 
-              {/* Checklist */}
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <h3 className="font-black text-2xl text-slate-800">Checklist Operativo</h3>
@@ -384,22 +391,6 @@ export default function App() {
                       saveData({ metaData: newMeta });
                     }}
                     role={role}
-                  />
-                </div>
-              </div>
-
-              {/* Google Drive Section */}
-              <div className="space-y-8">
-                <h3 className="font-black text-2xl text-slate-800">Recursos Creativos</h3>
-                <div className="grid grid-cols-1 gap-8">
-                  <DriveCarousel 
-                    title="Artes de Awareness" 
-                    folderId={metaData.drive.awareness} 
-                    onLink={(id) => {
-                      const newMeta = {...metaData, drive: {...metaData.drive, awareness: id}};
-                      setMetaData(newMeta);
-                      saveData({ metaData: newMeta });
-                    }}
                   />
                 </div>
               </div>
@@ -458,6 +449,7 @@ export default function App() {
                     )}
                   </div>
                 ))}
+                {eventos.length === 0 && <p className="text-slate-400 text-center py-10 col-span-2">No hay eventos registrados.</p>}
               </div>
             </div>
           )}
@@ -507,6 +499,7 @@ export default function App() {
                     )}
                   </div>
                 ))}
+                {insumos.length === 0 && <p className="text-slate-400 text-center py-10 col-span-3">No hay insumos cargados.</p>}
               </div>
             </div>
           )}
@@ -522,8 +515,8 @@ export default function App() {
                   </p>
                 </div>
                 <div className="text-right">
-                   <div className="text-3xl font-black text-blue-600">{express.filter(t => t.done).length}/{express.length}</div>
-                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Completadas</div>
+                    <div className="text-3xl font-black text-blue-600">{express.filter(t => t.done).length}/{express.length}</div>
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Completadas</div>
                 </div>
               </header>
 
@@ -580,6 +573,7 @@ export default function App() {
                         )}
                     </div>
                   ))}
+                  {express.length === 0 && <p className="text-slate-400 text-center py-10">No hay tareas pendientes.</p>}
                 </div>
               </div>
             </div>
@@ -619,11 +613,11 @@ function MobileIcon({ active, icon, onClick }) {
   );
 }
 
-function MetricCard({ label, value, subtext, icon, color, editing, onChange }) {
+function MetricCard({ label, value, subtext, icon, color, editing, onChange, isCurrency }) {
   return (
     <div className="bg-white p-7 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col justify-between h-full group">
       <div className="flex justify-between items-start mb-6">
-        <div className="space-y-1">
+        <div className="space-y-1 w-full">
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
           {editing ? (
             <input 
@@ -636,7 +630,7 @@ function MetricCard({ label, value, subtext, icon, color, editing, onChange }) {
             <div className="text-3xl font-black text-slate-800 tracking-tight">{value}</div>
           )}
         </div>
-        <div className={`p-3 rounded-2xl group-hover:scale-110 transition-all ${color}`}>{icon}</div>
+        <div className={`p-3 rounded-2xl group-hover:scale-110 transition-all ${color} shrink-0`}>{icon}</div>
       </div>
       {subtext && (
         <div className="pt-4 border-t border-slate-50">
@@ -651,6 +645,23 @@ function MetricCard({ label, value, subtext, icon, color, editing, onChange }) {
 
 function ChecklistCol({ title, items, color, onUpdate, role }) {
   const [input, setInput] = useState('');
+  
+  const toggleItem = (id) => {
+    const newItems = items.map(item => item.id === id ? { ...item, done: !item.done } : item);
+    onUpdate(newItems);
+  };
+
+  const addItem = () => {
+    if (!input) return;
+    const newItems = [...items, { id: Date.now(), text: input, done: false }];
+    onUpdate(newItems);
+    setInput('');
+  };
+
+  const removeItem = (id) => {
+    onUpdate(items.filter(item => item.id !== id));
+  };
+
   return (
     <div className={`bg-white p-7 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col ${color}`}>
       <div className="flex justify-between items-center mb-8">
@@ -662,87 +673,30 @@ function ChecklistCol({ title, items, color, onUpdate, role }) {
       <div className="space-y-4 flex-1">
         {items.map(item => (
           <div key={item.id} className="flex items-center gap-4 group">
-            <button 
-              disabled={role !== 'admin'}
-              onClick={() => onUpdate(items.map(i => i.id === item.id ? {...i, done: !i.done} : i))}
-              className={`transition-all ${role !== 'admin' ? 'cursor-default' : 'active:scale-90'}`}
-            >
-              {item.done ? <CheckCircle2 size={22} className="text-emerald-500" /> : <Circle size={22} className="text-slate-200" />}
+            <button onClick={() => toggleItem(item.id)}>
+              {item.done ? <CheckCircle2 className="text-blue-500" size={20}/> : <Circle className="text-slate-200" size={20}/>}
             </button>
             <span className={`text-sm font-bold flex-1 ${item.done ? 'text-slate-300 line-through' : 'text-slate-600'}`}>{item.text}</span>
             {role === 'admin' && (
-              <button onClick={() => onUpdate(items.filter(i => i.id !== item.id))} className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-rose-500 transition-all">
-                <X size={16}/>
+              <button onClick={() => removeItem(item.id)} className="opacity-0 group-hover:opacity-100 text-slate-200 hover:text-rose-500 transition-all">
+                <X size={14}/>
               </button>
             )}
           </div>
         ))}
       </div>
       {role === 'admin' && (
-        <div className="flex gap-3 mt-8 pt-6 border-t border-slate-50">
+        <div className="mt-8 flex gap-2">
           <input 
+            type="text" 
             value={input}
             onChange={e => setInput(e.target.value)}
-            placeholder="Añadir..." 
-            className="flex-1 text-xs font-bold p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-1 focus:ring-blue-500"
-            onKeyDown={e => {
-              if(e.key === 'Enter' && input) {
-                onUpdate([...items, { id: Date.now(), text: input, done: false }]);
-                setInput('');
-              }
-            }}
+            onKeyDown={e => e.key === 'Enter' && addItem()}
+            placeholder="Nueva tarea..." 
+            className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:ring-1 focus:ring-blue-500"
           />
-          <button onClick={() => {
-            if(input) {
-              onUpdate([...items, { id: Date.now(), text: input, done: false }]);
-              setInput('');
-            }
-          }} className="bg-slate-100 p-3 rounded-xl text-slate-400 hover:text-blue-500 transition-all"><Plus size={18}/></button>
+          <button onClick={addItem} className="bg-blue-600 text-white p-2 rounded-xl"><Plus size={16}/></button>
         </div>
-      )}
-    </div>
-  );
-}
-
-function DriveCarousel({ title, folderId, onLink }) {
-  const [url, setUrl] = useState(folderId || '');
-  const [isEditing, setIsEditing] = useState(!folderId);
-
-  return (
-    <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-      <div className="flex justify-between items-center mb-6">
-        <h4 className="font-black text-xl text-slate-800 flex items-center gap-3">
-          <ImageIcon className="text-blue-600" /> {title}
-        </h4>
-        <button onClick={() => setIsEditing(!isEditing)} className="p-2 text-slate-400 hover:text-blue-600">
-           {isEditing ? <X size={20}/> : <Edit2 size={20}/>}
-        </button>
-      </div>
-      
-      {isEditing ? (
-          <div className="flex gap-4">
-              <input 
-                type="text" 
-                placeholder="ID de la carpeta de Drive" 
-                value={url}
-                onChange={e => setUrl(e.target.value)}
-                className="flex-1 p-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold"
-              />
-              <button onClick={() => {
-                  onLink(url);
-                  setIsEditing(false);
-              }} className="bg-blue-600 text-white px-6 rounded-2xl font-black text-sm">VINCULAR</button>
-          </div>
-      ) : (
-          <div className="flex items-center gap-4 p-6 bg-blue-50 rounded-3xl border border-blue-100 border-dashed">
-              <FolderOpen size={40} className="text-blue-400" />
-              <div>
-                  <p className="font-black text-blue-800">Carpeta vinculada</p>
-                  <a href={`https://drive.google.com/drive/folders/${folderId}`} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-500 flex items-center gap-1 hover:underline">
-                      Ver en Google Drive <ExternalLink size={12}/>
-                  </a>
-              </div>
-          </div>
       )}
     </div>
   );
